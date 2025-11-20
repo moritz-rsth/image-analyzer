@@ -1,0 +1,77 @@
+features:
+  calculate_aesthetic_scores:
+    active: true
+    parameters:
+      weight_filename: weights_mobilenet_aesthetic_0.07.hdf5
+      weight_url: https://github.com/idealo/image-quality-assessment/blob/master/models/MobileNet/weights_mobilenet_aesthetic_0.07.hdf5?raw=true
+  calculate_hue_proportions:
+    active: true
+  calculate_image_clarity:
+    active: true
+  describe_blip:
+    active: true
+    parameters:
+      model: Salesforce/blip-image-captioning-base
+      processor: Salesforce/blip-image-captioning-base
+  describe_llm:
+    active: false
+    parameters:
+      max_new_tokens: 1000
+      model: microsoft/Phi-4-multimodal-instruct
+  detect_faces:
+    active: true
+    parameters:
+      confidence_threshold: 0.9
+  detect_objects:
+    active: false
+    parameters:
+      objects_to_detect:
+      - object
+      - animal
+      - human
+      - consumer
+      - consumer product
+  estimate_noise:
+    active: true
+  extract_basic_image_features:
+    active: true
+  extract_blur_value:
+    active: true
+  get_color_features:
+    active: true
+  get_composition_features:
+    active: true
+  get_figure_ground_relationship_features:
+    active: true
+    parameters:
+      canny_edge_high_threshold: 200
+      canny_edge_low_threshold: 100
+      saliency_threshold: 0.5
+  get_ocr_text:
+    active: false
+    parameters:
+      language: eng
+      windows_path_to_tesseract: C:\\Program Files\\Tesseract-OCR\\tesseract.exe
+  predict_coco_labels_yolo11:
+    active: true
+  predict_imagenet_classes_yolo11:
+    active: true
+  self_similarity:
+    active: true
+  visual_complexity:
+    active: true
+    parameters:
+      threshold: 25000
+general:
+  debug_image_count: 5
+  debug_mode: false
+  input_dir: ..\..\data\test_human_20\
+  logs:
+    active: true
+  output_dir: ..\..\outputs\
+  output_formats:
+    csv: true
+    excel: true
+  summary_stats:
+    active: true
+  verbose: false

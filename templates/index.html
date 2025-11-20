@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title> Image Analyzer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4a6bff;
+            --secondary-color: #f8f9fa;
+            --accent-color: #ff6b6b;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7ff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .navbar {
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 1rem 2rem;
+        }
+
+        .main-container {
+            flex: 1;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            background: white;
+            transition: transform 0.3s ease;
+            margin-bottom: 2rem;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .upload-section {
+            padding: 2rem;
+            border: 2px dashed #e9ecef;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 2rem;
+            transition: all 0.3s ease;
+        }
+
+        .upload-section:hover {
+            border-color: var(--primary-color);
+            background-color: rgba(74, 107, 255, 0.05);
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            background-color: #3a5bef;
+            transform: translateY(-2px);
+        }
+
+        .alert {
+            border-radius: 10px;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .alert-success {
+            background-color: rgba(40, 167, 69, 0.1);
+            color: var(--success-color);
+        }
+
+        .alert-danger {
+            background-color: rgba(220, 53, 69, 0.1);
+            color: var(--danger-color);
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: var(--primary-color);
+            width: 0;
+            transition: width 0.3s ease;
+        }
+
+        #fileList {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-item i {
+            margin-right: 0.5rem;
+            color: var(--primary-color);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-camera-retro me-2"></i>
+                 Image Analyzer
+            </a>
+            <div class="d-flex">
+                <a href="/config-new" class="btn btn-outline-primary">
+                    <i class="fas fa-cog me-2"></i>Configuration
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="card">
+            <div class="card-body">
+                <h1 class="text-center mb-4">Upload Images</h1>
+                
+                <div class="alert alert-success" id="success-message" style="display: none;">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <span id="success-text"></span>
+                </div>
+                <div class="alert alert-danger" id="error-message" style="display: none;">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    <span id="error-text"></span>
+                </div>
+
+                <div class="upload-section" id="dropZone">
+                    <i class="fas fa-cloud-upload-alt fa-3x mb-3" style="color: var(--primary-color);"></i>
+                    <h4>Drag and drop files or folders here</h4>
+                    <p class="text-muted">or</p>
+                    <div class="d-flex justify-content-center gap-3">
+                        <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                            <i class="fas fa-file me-2"></i>Select Files
+                        </button>
+                        <button class="btn btn-primary" onclick="document.getElementById('folderInput').click()">
+                            <i class="fas fa-folder me-2"></i>Select Folder
+                        </button>
+                    </div>
+                    <input type="file" id="fileInput" multiple style="display: none;" onchange="handleFileSelect(this.files)">
+                    <input type="file" id="folderInput" webkitdirectory directory style="display: none;" onchange="handleFolderSelect(this.files)">
+                </div>
+
+                <div id="fileList" class="mb-3" style="display: none;">
+                    <h5>Selected Files:</h5>
+                    <div id="selectedFiles"></div>
+                </div>
+
+                <div class="mb-3">
+                    <h5>Select Output Format:</h5>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="csvFormat" checked>
+                        <label class="form-check-label" for="csvFormat">CSV (.csv)</label>
+                    </div>
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input" type="checkbox" id="excelFormat" checked>
+                        <label class="form-check-label" for="excelFormat">Excel (.xlsx)</label>
+                    </div>
+                </div>
+
+                <div class="text-center">
+                    <button class="btn btn-primary" id="processButton" onclick="processImages()" disabled>
+                        <i class="fas fa-cogs me-2"></i>Process Images
+                    </button>
+                </div>
+
+                <div class="progress mt-3" style="display: none;">
+                    <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentBatchFolder = null;
+
+        // Handle drag and drop
+        const dropZone = document.getElementById('dropZone');
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight(e) {
+            dropZone.classList.add('highlight');
+        }
+
+        function unhighlight(e) {
+            dropZone.classList.remove('highlight');
+        }
+
+        dropZone.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            
+            if (files.length > 0) {
+                if (files[0].webkitRelativePath) {
+                    handleFolderSelect(files);
+                } else {
+                    handleFileSelect(files);
+                }
+            }
+        }
+
+        function handleFileSelect(files) {
+            const fileList = document.getElementById('fileList');
+            const selectedFiles = document.getElementById('selectedFiles');
+            selectedFiles.innerHTML = '';
+            
+            Array.from(files).forEach(file => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <i class="fas fa-file"></i>
+                    <span>${file.name}</span>
+                `;
+                selectedFiles.appendChild(fileItem);
+            });
+            
+            fileList.style.display = 'block';
+            document.getElementById('processButton').disabled = false;
+            
+            uploadFiles(files);
+        }
+
+        function handleFolderSelect(files) {
+            const fileList = document.getElementById('fileList');
+            const selectedFiles = document.getElementById('selectedFiles');
+            selectedFiles.innerHTML = '';
+            
+            Array.from(files).forEach(file => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <i class="fas fa-file"></i>
+                    <span>${file.webkitRelativePath}</span>
+                `;
+                selectedFiles.appendChild(fileItem);
+            });
+            
+            fileList.style.display = 'block';
+            document.getElementById('processButton').disabled = false;
+            
+            uploadFolder(files);
+        }
+
+        function uploadFiles(files) {
+            const formData = new FormData();
+            Array.from(files).forEach(file => {
+                formData.append('files[]', file);
+            });
+
+            fetch('/', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    currentBatchFolder = data.batch_folder;
+                    showMessage('success', data.message);
+                } else {
+                    showMessage('error', data.message);
+                }
+            })
+            .catch(error => {
+                showMessage('error', 'Error uploading files: ' + error);
+            });
+        }
+
+        function uploadFolder(files) {
+            const formData = new FormData();
+            Array.from(files).forEach(file => {
+                formData.append('folder', file);
+            });
+
+            fetch('/', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    currentBatchFolder = data.batch_folder;
+                    showMessage('success', data.message);
+                } else {
+                    showMessage('error', data.message);
+                }
+            })
+            .catch(error => {
+                showMessage('error', 'Error uploading folder: ' + error);
+            });
+        }
+
+        function processImages() {
+            if (!currentBatchFolder) {
+                showMessage('error', 'No files uploaded yet');
+                return;
+            }
+
+            const processButton = document.getElementById('processButton');
+            const progressBar = document.querySelector('.progress');
+            processButton.disabled = true;
+            progressBar.style.display = 'block';
+
+            const excelFormat = document.getElementById('excelFormat').checked;
+            const csvFormat = document.getElementById('csvFormat').checked;
+
+            if (!excelFormat && !csvFormat) {
+                showMessage('error', 'Please select at least one output format');
+                processButton.disabled = false;
+                progressBar.style.display = 'none';
+                return;
+            }
+
+            fetch('/process-images', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    batch_folder: currentBatchFolder,
+                    output_formats: {
+                        excel: excelFormat,
+                        csv: csvFormat
+                    }
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showMessage('success', data.message);
+                    // Clear previous download links
+                    const previousLinks = document.querySelectorAll('.download-link');
+                    previousLinks.forEach(link => link.remove());
+                    
+                    // Add download links for each format
+                    if (data.download_links) {
+                        if (data.download_links.excel) {
+                            const excelLink = document.createElement('a');
+                            excelLink.href = `/download/${data.download_links.excel}`;
+                            excelLink.className = 'btn btn-primary mt-3 me-2 download-link';
+                            excelLink.innerHTML = '<i class="fas fa-file-excel me-2"></i>Download Excel';
+                            document.querySelector('.card-body').appendChild(excelLink);
+                        }
+                        if (data.download_links.csv) {
+                            const csvLink = document.createElement('a');
+                            csvLink.href = `/download/${data.download_links.csv}`;
+                            csvLink.className = 'btn btn-primary mt-3 download-link';
+                            csvLink.innerHTML = '<i class="fas fa-file-csv me-2"></i>Download CSV';
+                            document.querySelector('.card-body').appendChild(csvLink);
+                        }
+                    }
+                } else {
+                    showMessage('error', data.message);
+                }
+                processButton.disabled = false;
+                progressBar.style.display = 'none';
+            })
+            .catch(error => {
+                showMessage('error', 'Error processing images: ' + error);
+                processButton.disabled = false;
+                progressBar.style.display = 'none';
+            });
+        }
+
+        function showMessage(type, message) {
+            const successMessage = document.getElementById('success-message');
+            const errorMessage = document.getElementById('error-message');
+            const successText = document.getElementById('success-text');
+            const errorText = document.getElementById('error-text');
+
+            if (type === 'success') {
+                successText.textContent = message;
+                successMessage.style.display = 'block';
+                errorMessage.style.display = 'none';
+            } else {
+                errorText.textContent = message;
+                errorMessage.style.display = 'block';
+                successMessage.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html> 

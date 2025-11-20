@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Configuration Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #4a6bff;
+            --secondary-color: #f8f9fa;
+            --accent-color: #ff6b6b;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+        }
+
+        .cursive-text {
+            font-style: italic;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7ff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .navbar {
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 1rem 2rem;
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            color: var(--primary-color) !important;
+            font-size: 1.4rem;
+        }
+
+        .main-container {
+            flex: 1;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            background: white;
+            transition: transform 0.3s ease;
+            margin-bottom: 2rem;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .config-section {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            background: white;
+            transition: all 0.3s ease;
+        }
+
+        .config-section:hover {
+            border-color: var(--primary-color);
+            box-shadow: 0 2px 4px rgba(74, 107, 255, 0.1);
+        }
+
+        .feature-section {
+            background-color: var(--secondary-color);
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .feature-section:hover {
+            background-color: #e9ecef;
+        }
+
+        .parameter-section {
+            margin-left: 2rem;
+            padding: 1.5rem;
+            background-color: white;
+            border-radius: 10px;
+            border: 1px solid #e9ecef;
+        }
+
+        .form-check {
+            margin-bottom: 1rem;
+        }
+
+        .form-check-input {
+            width: 1.2em;
+            height: 1.2em;
+            margin-top: 0.2em;
+        }
+
+        .form-check-label {
+            font-weight: 500;
+            margin-left: 0.5rem;
+        }
+
+        .form-label {
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .object-list {
+            margin-left: 2rem;
+        }
+
+        .object-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 0.75rem;
+            padding: 0.75rem;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+
+        .object-item input {
+            flex: 1;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border: none;
+            padding: 0.75rem 2rem;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            background-color: #3a5bef;
+            transform: translateY(-2px);
+        }
+
+        .btn-outline-danger {
+            color: var(--danger-color);
+            border-color: var(--danger-color);
+        }
+
+        .btn-outline-danger:hover {
+            background-color: var(--danger-color);
+            color: white;
+        }
+
+        .alert {
+            border-radius: 10px;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .alert-success {
+            background-color: rgba(40, 167, 69, 0.1);
+            color: var(--success-color);
+        }
+
+        .alert-danger {
+            background-color: rgba(220, 53, 69, 0.1);
+            color: var(--danger-color);
+        }
+
+        .section-title {
+            color: var(--primary-color);
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .section-title i {
+            font-size: 1.2em;
+        }
+
+        .feature-title {
+            font-weight: 600;
+            color: #212529;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .nav-buttons {
+            margin-bottom: 2rem;
+        }
+
+        .settings-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 1.5rem;
+            border: 1px solid #e9ecef;
+            transition: all 0.3s ease;
+            height: 100%;
+        }
+
+        .settings-card:hover {
+            border-color: var(--primary-color);
+            box-shadow: 0 2px 8px rgba(74, 107, 255, 0.1);
+        }
+
+        .nav-buttons .btn {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .form-control {
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            padding: 0.75rem 1rem;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(74, 107, 255, 0.25);
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: var(--primary-color);
+            width: 0;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-camera-retro me-2"></i>
+                Image Analyzer
+            </a>
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <div class="card">
+            <div class="card-body">
+                <h1 class="text-center mb-4">Configuration Management</h1>
+                
+                <div class="alert alert-success" id="success-message" style="display: none;">
+                    <i class="fas fa-check-circle me-2"></i>Configuration updated successfully!
+                </div>
+                <div class="alert alert-danger" id="error-message" style="display: none;">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    <span id="error-text"></span>
+                </div>
+                
+                <form id="config-form">
+                    <!-- General Settings Section -->
+                    <div class="config-section">
+                        <h2 class="section-title">
+                            <i class="fas fa-cog"></i>General Settings
+                        </h2>
+                        <div class="feature-section">
+                            <h5 class="form-label mb-4">
+                                <i class="fas fa-file-archive me-2"></i>Output Files
+                            </h5>
+                            <div class="form-check mb-3">
+                                <input type="checkbox" name="general.output_formats.excel" class="form-check-input" checked>
+                                <label class="form-check-label">Results as Excel (.xlsx)</label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input type="checkbox" name="general.output_formats.csv" class="form-check-input" checked>
+                                <label class="form-check-label">Results as CSV (.csv)</label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input type="checkbox" name="general.summary_stats.active" class="form-check-input" checked>
+                                <label class="form-check-label">Summary statistics as Excel (.xlsx)</label>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input type="checkbox" name="general.logs.active" class="form-check-input" checked>
+                                <label class="form-check-label">Logs as CSV (.csv)</label>
+                            </div>
+                            <div class="mt-3">
+                                <small class="text-muted">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    All selected output files can be downloaded in a single ZIP file named "Image-Analyzer_run_YYYYMMDD_HHMMSS.zip"
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Features Section -->
+                    <div class="config-section">
+                        <h2 class="section-title">
+                            <i class="fas fa-sliders-h"></i>Configure Features
+                        </h2>
+                        
+                        <!-- Basic Image Features -->
+                        <div class="feature-section">
+                            <div class="form-check">
+                                <input type="checkbox" name="features.extract_basic_image_features.active" class="form-check-input" checked>
+                                <label class="form-check-label feature-title">
+                                    <i class="fas fa-image"></i>Basic Features
+                                </label>
+                            </div>
+                            <p class="text-muted mt-2">This function returns fundamental image properties including dimensions, color statistics, and entropy metrics.<br><br><strong>Calculation:</strong><br>The function extracts basic image properties. Per image, the following metrics are calculated:<br>• <i>fileName</i> representing the image filename without file type extension<br>• <i>fileType</i> representing the image file extension<br>• <i>fileSize</i> as the file size in kilobytes<br>• <i>fileCreationTime</i> as the file creation timestamp<br>• <i>height</i> as the image height in pixels<br>• <i>width</i> as the image width in pixels<br>• <i>aspectRatio</i> as the width/height ratio<br>• <i>rMean</i>, <i>gMean</i>, <i>bMean</i> as the mean RGB values between 0 and 255<br>• <i>rStd</i>, <i>gStd</i>, <i>bStd</i> representing RGB standard deviations<br>• <i>hueMean</i>, <i>hueStd</i> as the HSV hue statistics<br>• <i>greyscaleMean</i>, <i>greyscaleStd</i> as the greyscale statistics<br>• <i>shannonEntropy</i> as the measured shannon entropy<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>OpenCV Documentation. (2023). <a href="https://docs.opencv.org/" target="_blank">https://docs.opencv.org/</a></p>
+                        </div>
+
+                        <!-- Blur Value -->
+                        <div class="feature-section">
+                            <div class="form-check">
+                                <input type="checkbox" name="features.extract_blur_value.active" class="form-check-input" checked>
+                                <label class="form-check-label feature-title">
+                                    <i class="fas fa-camera-retro"></i>Blur
+                                </label>
+                            </div>
+                            <p class="text-muted mt-2">This function returns the sharpness of the image (<i>blur</i>).<br><br><strong>Calculation:</strong><br>The function uses OpenCV's Laplacian operator to measure image sharpness. Per image, the following metric is calculated:<br>• <i>blur</i> as a float value representing image sharpness, calculated as the variance of the Laplacian operator applied to the grayscale image with values below 100 indicating a blurry image<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Pech-Pacheco, J. L., Cristobal, G., Chamorro-Martinez, J., & Fernandez-Valdivia, J. (2000). Diatom autofocusing in brightfield microscopy: a comparative study. In <span class="cursive-text">Proceedings 15th International Conference on Pattern Recognition. ICPR-2000</span> (Vol. 3, pp. 314–317). IEEE. <a href="https://doi.org/10.1109/ICPR.2000.903548" target="_blank">https://doi.org/10.1109/ICPR.2000.903548</a></p>
+                        </div>
+
+                        <!-- Estimate Noise -->
+                        <div class="feature-section">
+                            <div class="form-check">
+                                <input type="checkbox" name="features.estimate_noise.active" class="form-check-input" checked>
+                                <label class="form-check-label feature-title">
+                                    <i class="fas fa-wave-square"></i>Noise
+                                </label>
+                            </div>
+                            <p class="text-muted mt-2">This function returns the noise present in the image (<i>noise</i>).<br><br><strong>Calculation:</strong><br>The function uses a 3x3 Laplacian kernel convolution method to estimate noise. Per image, the following metric is calculated:<br>• <i>noise</i> as a the sigma value representing noise level, with values above 10 indicating a significant noise presence<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Immerkær, J. (1996). Fast noise variance estimation. <span class="cursive-text">Computer Vision and Image Understanding</span>, 64(2), 300–302. <a href="https://doi.org/10.1006/cviu.1996.0040" target="_blank">https://doi.org/10.1006/cviu.1996.0040</a></p>
+                        </div>
+
+                        <!-- Image Clarity -->
+                        <div class="feature-section">
+                            <div class="form-check">
+                                <input type="checkbox" name="features.calculate_image_clarity.active" class="form-check-input" checked>
+                                <label class="form-check-label feature-title">
+                                    <i class="fas fa-eye"></i>Clarity
+                                </label>
+                            </div>
+                            <p class="text-muted mt-2">This function returns the clarity of the image (<i>clarity</i>).<br><br><strong>Calculation:</strong><br>The function uses HSV color space analysis to measure image clarity. Per image, the following metric is calculated:<br>• <i>clarity</i> as a clarity score based on the proportion of high-brightness pixels in the image<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Zhang, M., & Luo, L. (2022). Can consumer-posted photos serve as a leading indicator of restaurant survival? Evidence from Yelp. <span class="cursive-text">Management Science</span>, 69(1), 25–50. <a href="https://doi.org/10.1287/mnsc.2022.4359" target="_blank">https://doi.org/10.1287/mnsc.2022.4359</a></p>
+                        </div>
+
+                        <!-- Hue Proportions -->
+                        <div class="feature-section">
+                            <div class="form-check">
+                                <input type="checkbox" name="features.calculate_hue_proportions.active" class="form-check-input" checked>
+                                <label class="form-check-label feature-title">
+                                    <i class="fas fa-palette"></i>Hues
+                                </label>
+                            </div>
+                            <p class="text-muted mt-2">This function returns two values: the proportion of warm color hues in the image (<i>hues_warm</i>) and of cold color hues in the image (<i>hues_cold</i>).<br><br><strong>Calculation:</strong><br>The function uses HSV color space analysis to measure color temperature. Per image, the following metrics are calculated:<br>• <i>hues_warm</i> as the proportion of warm colors (reds, oranges, yellows) in the image<br>• <i>hues_cold</i> as the proportion of cold colors (greens, blues) in the image<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Wang, W.-N., Yu, Y.-L., & Jiang, S. (2006). Image retrieval by emotional semantics: A study of emotional space and feature extraction. In <span class="cursive-text">Proceedings of the IEEE International Conference on Systems, Man and Cybernetics</span> (Vol. 4, pp. 3534–3539). IEEE. <a href="https://doi.org/10.1109/ICSMC.2006.384667" target="_blank">https://doi.org/10.1109/ICSMC.2006.384667</a></p>
+                        </div>
+
+                        <!-- COCO Labels -->
+                        <div class="feature-section">
+                            <div class="form-check">
+                                <input type="checkbox" name="features.predict_coco_labels_yolo11.active" class="form-check-input" checked>
+                                <label class="form-check-label feature-title">
+                                    <i class="fas fa-tags"></i>COCO Labels
+                                </label>
+                            </div>
+                            <p class="text-muted mt-2">This function returns confidence scores for each detected COCO class detected.<br><br><strong>Calculation:</strong><br>The function uses the YOLO model to detect COCO classes. Per image, the following metrics are calculated:<br>• <i>coco_[class_name]</i> as the prediction probability for each detected COCO class. For example, if a person is detected, there will be a 'person' column with the detection confidence<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Redmon, J., Divvala, S. K., Girshick, R. B., & Farhadi, A. (2015). You only look once: Unified, real-time object detection. <span class="cursive-text">arXiv preprint arXiv:1506.02640</span>. <a href="https://arxiv.org/abs/1506.02640" target="_blank">https://arxiv.org/abs/1506.02640</a></p>
+                        </div>
+
+                        <!-- ImageNet Classes -->
+                        <div class="feature-section">
+                            <div class="form-check">
+                                <input type="checkbox" name="features.predict_imagenet_classes_yolo11.active" class="form-check-input" checked>
+                                <label class="form-check-label feature-title">
+                                    <i class="fas fa-layer-group"></i>Image Classification
+                                </label>
+                            </div>
+                            <p class="text-muted mt-2">This function returns probability scores for each ImageNet class detected.<br><br><strong>Calculation:</strong><br>The function uses the YOLO model to classify ImageNet classes. Per image, the following metrics are calculated:<br>• <i>imagenet_[class_name]</i> as the prediction probability for each ImageNet class. For example, if a dog is detected, there will be an 'imagenet_dog' column with the classification probability<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Redmon, J., Divvala, S. K., Girshick, R. B., & Farhadi, A. (2015). You only look once: Unified, real-time object detection. <span class="cursive-text">arXiv preprint arXiv:1506.02640</span>. <a href="https://arxiv.org/abs/1506.02640" target="_blank">https://arxiv.org/abs/1506.02640</a></p>
+                        </div>
+
+                        <!-- Color Features -->
+                        <div class="feature-section">
+                            <div class="form-check">
+                                <input type="checkbox" name="features.get_color_features.active" class="form-check-input" checked>
+                                <label class="form-check-label feature-title">
+                                    <i class="fas fa-fill-drip"></i>Color Metrics
+                                </label>
+                            </div>
+                            <p class="text-muted mt-2">This function returns four values: average image brightness (<i>brightnessMean</i>), average saturation (<i>saturationMean</i>), brightness contrast (<i>contrast</i>), and colorfulness based on Hasler and Suesstrunk (<i>colorfulness</i>).<br><br><strong>Calculation:</strong><br>The function uses color space analysis to measure various color metrics. Per image, the following metrics are calculated:<br>• <i>brightnessMean</i> as the mean brightness normalized to values between 0 and 1 <br>• <i>saturationMean</i> as the mean color saturation normalized to values between 0 and 1<br>• <i>contrast</i> as the standard deviation of the V channels in HSV<br>• <i>colorfulness</i> as the variation in colors (standard deviations) and their intensity (means) in the red-green and yellow-blue color spaces<br><br>For details, please check the actual implementation.<br><br><strong>Sources:</strong><br>• Datta, R., Joshi, D., Li, J., & Wang, J. Z. (2006). Studying aesthetics in photographic images using a computational approach. In A. Leonardis, H. Bischof, & A. Pinz (Eds.), <span class="cursive-text">Computer vision – ECCV 2006</span> (Lecture Notes in Computer Science, Vol. 3953, pp. 288–301). Springer. <a href="https://doi.org/10.1007/11744078_23" target="_blank">https://doi.org/10.1007/11744078_23</a><br>• Hasler, D., & Süsstrunk, S. (2003, June). Measuring colourfulness in natural images. <span class="cursive-text">Proceedings of SPIE - The International Society for Optical Engineering</span>, 5007, 87–95. <a href="https://doi.org/10.1117/12.477378" target="_blank">https://doi.org/10.1117/12.477378</a><br>• Zhang, M., & Luo, L. (2022). Can consumer-posted photos serve as a leading indicator of restaurant survival? Evidence from Yelp. <span class="cursive-text">Management Science</span>, 69(1), 25–50. <a href="https://doi.org/10.1287/mnsc.2022.4359" target="_blank">https://doi.org/10.1287/mnsc.2022.4359</a> <br>• Wang, W.-N., Yu, Y.-L., & Jiang, S. (2006). Image retrieval by emotional semantics: A study of emotional space and feature extraction. In <span class="cursive-text">Proceedings of the IEEE International Conference on Systems, Man and Cybernetics</span> (Vol. 4, pp. 3534–3539). IEEE. <a href="https://doi.org/10.1109/ICSMC.2006.384667" target="_blank">https://doi.org/10.1109/ICSMC.2006.384667</a></p>
+                        </div>
+
+                        <!-- Composition Features -->
+                        <div class="feature-section">
+                            <div class="form-check">
+                                <input type="checkbox" name="features.get_composition_features.active" class="form-check-input" checked>
+                                <label class="form-check-label feature-title">
+                                    <i class="fas fa-crop"></i>Composition 
+                                </label>
+                            </div>
+                            <p class="text-muted mt-2">This function returns six values: diagonal dominance (<i>diagonalDominance</i>), rule of thirds adherence (<i>ruleOfThirds</i>), and six visual balance metrics.<br><br><strong>Calculation:</strong><br>The function uses OpenCV saliency detectors and image analysis to measure composition. Per image, the following metrics are calculated:<br>• <i>diagonalDominance</i> as the normalized (inverted) minimum distance from the salient center to the two image diagonals<br>• <i>ruleOfThirds</i> as the normalized (inverted) minimum distance from the salient center to the four intersections of a 3×3 grid<br>• <i>physicalVisualBalanceVertical</i> as 1 minus the normalized vertical distance between the salient center and the image center<br>• <i>physicalVisualBalanceHorizontal</i> as 1 minus the normalized horizontal distance between the salient center and the image center<br>• <i>colorVisualBalanceVertical</i> as 1 minus the normalized average Euclidean color distance between top and bottom symmetric pixels<br>• <i>colorVisualBalanceHorizontal</i> as 1 minus the normalized average Euclidean color distance between left and right symmetric pixels<br><br>For details, please check the actual implementation.<br><br><strong>Sources:</strong><br>• Wang, X., Jia, J., Yin, J., & Cai, L. (2013). Interpretable aesthetic features for affective image classification. In <span class="cursive-text">Proceedings of the 2013 IEEE International Conference on Image Processing</span> (pp. 3230–3234). IEEE. <a href="https://doi.org/10.1109/ICIP.2013.6738665" target="_blank">https://doi.org/10.1109/ICIP.2013.6738665</a> <br>• Datta, R., Joshi, D., Li, J., & Wang, J. Z. (2006). Studying aesthetics in photographic images using a computational approach. In A. Leonardis, H. Bischof, & A. Pinz (Eds.), <span class="cursive-text">Computer vision – ECCV 2006</span> (Lecture Notes in Computer Science, Vol. 3953, pp. 288–301). Springer. <a href="https://doi.org/10.1007/11744078_23" target="_blank">https://doi.org/10.1007/11744078_23</a></p>
+                        </div>
+
+                        <!-- Figure Ground Relationship -->
+                        <div class="feature-section">
+                            <div class="form-check">
+                                <input type="checkbox" name="features.get_figure_ground_relationship_features.active" class="form-check-input" checked>
+                                <label class="form-check-label feature-title">
+                                    <i class="fas fa-object-group"></i>Figure-Ground Relationship
+                                </label>
+                            </div>
+                            <p class="text-muted mt-2">This function returns six values: Size difference between figure and background (<i>sizeDifference</i>), color difference between figure and background (<i>colorDifference</i>), texture difference between figure and background (<i>textureDifference</i>), and depth of field metrics calculated (<i>depthOfFieldHue</i>, <i>depthOfFieldSaturation</i>, <i>depthOfFieldValue</i>).<br><br><strong>Calculation:</strong><br>The function uses OpenCV saliency detectors and edge detection to measure figure-ground relationships. Per image, the following metrics are calculated:<br>• <i>sizeDifference</i> as the absolute difference of the numbers of pixels between figure and ground, normalized by the total number<br>• <i>colorDifference</i> as the euclidean distance between the average RGB vector of the figure and that of the background<br>• <i>textureDifference</i> as the absolute difference between the edge densities (using Canny) of the figure and background<br>• <i>depthOfFieldHue</i> as the ratio of high-frequency detail in the center four regions compared to the entire image in the hue channel<br>• <i>depthOfFieldSaturation</i> as the ratio of high-frequency detail in the center four regions compared to the entire image in the saturation channel<br>• <i>depthOfFieldValue</i> as the ratio of high-frequency detail in the center four regions compared to the entire image in the brightness channel<br><br>For details, please check the actual implementation.<br><br><strong>Sources:</strong><br>• Wang, X., Jia, J., Yin, J., & Cai, L. (2013). Interpretable aesthetic features for affective image classification. In <span class="cursive-text">Proceedings of the 2013 IEEE International Conference on Image Processing</span> (pp. 3230–3234). IEEE. <a href="https://doi.org/10.1109/ICIP.2013.6738665" target="_blank">https://doi.org/10.1109/ICIP.2013.6738665</a> <br>• Datta, R., Joshi, D., Li, J., & Wang, J. Z. (2006). Studying aesthetics in photographic images using a computational approach. In A. Leonardis, H. Bischof, & A. Pinz (Eds.), <span class="cursive-text">Computer vision – ECCV 2006</span> (Lecture Notes in Computer Science, Vol. 3953, pp. 288–301). Springer. <a href="https://doi.org/10.1007/11744078_23" target="_blank">https://doi.org/10.1007/11744078_23</a><br>• Canny, J. (1987). A computational approach to edge detection. In M. A. Fischler & O. Firschein (Eds.), <span class="cursive-text">Readings in computer vision</span> (pp. 184–203). Morgan Kaufmann. <a href="https://doi.org/10.1016/B978-0-08-051581-6.50024-6" target="_blank">https://doi.org/10.1016/B978-0-08-051581-6.50024-6</a></p>
+                            <div class="parameter-section" style="display: none;">
+                                <div class="form-group">
+                                    <label class="form-label">Saliency threshold</label>
+                                    <input type="number" name="features.get_figure_ground_relationship_features.parameters.saliency_threshold" class="form-control" value="0.5" step="0.1" min="0" max="1">
+                                    <label class="form-label mt-2">Lower threshold for canny edge</label>
+                                    <input type="number" name="features.get_figure_ground_relationship_features.parameters.canny_edge_low_threshold" class="form-control" value="100">
+                                    <label class="form-label mt-2">Upper threshold for canny edge</label>
+                                    <input type="number" name="features.get_figure_ground_relationship_features.parameters.canny_edge_high_threshold" class="form-control" value="200">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Visual Complexity -->
+                        <div class="feature-section">
+                            <div class="form-check">
+                                <input type="checkbox" name="features.visual_complexity.active" class="form-check-input" checked>
+                                <label class="form-check-label feature-title">
+                                    <i class="fas fa-puzzle-piece"></i>Visual Complexity
+                                </label>
+                            </div>
+                            <p class="text-muted mt-2">This function returns the visual complexity of the image (<i>visualComplexity</i>).<br><br><strong>Calculation:</strong><br>The function calculates the visual complexity of each image by counting the number of regions in the binary image. Per image, the following metric is calculated:<br>• <i>visualComplexity</i> is calculated by converting the image to binary using adaptive thresholding, then counting the number of connected regions that are larger than the threshold<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Durmus, D. (2020). Spatial Frequency and the Performance of Image-Based Visual Complexity Metrics. <span class="cursive-text">IEEE Access</span>, 8, 100111–100119. Institute of Electrical and Electronics Engineers (IEEE). Retrieved from <a href="https://doi.org/10.1109%2Faccess.2020.2998292" target="_blank">https://doi.org/10.1109%2Faccess.2020.2998292</a></p>
+                            <div class="parameter-section" style="display: none;">
+                                <div class="form-group">
+                                    <label class="form-label">Threshold</label>
+                                    <input type="number" name="features.visual_complexity.parameters.threshold" class="form-control" value="25000">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Self Similarity -->
+                        <div class="feature-section">
+                            <div class="form-check">
+                                <input type="checkbox" name="features.self_similarity.active" class="form-check-input" checked>
+                                <label class="form-check-label feature-title">
+                                    <i class="fas fa-copy"></i>Self-Similarity
+                                </label>
+                            </div>
+                            <p class="text-muted mt-2">This function returns the degree to which different regions in the image mimic each other. (<i>selfSimilarity</i>).<br><br><strong>Calculation:</strong><br>This function calculates the self-similarity of each image using the power spectrum of the Fourier transform. Per image, the following metric is calculated:<br>• <i>selfSimilarity</i> measures how closely the image's frequency distribution follows the natural 1/f² power law. With 1 indicating perfect self-similarity and 0 indicating no self-similarity.<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Mayer, S., & Landwehr, J. R. (2018). Quantifying visual aesthetics based on processing fluency theory: Four algorithmic measures for antecedents of aesthetic preferences. <span class="cursive-text">Psychology of Aesthetics, Creativity, and the Arts</span>, 12(4), 399–431. <a href="https://doi.org/10.1037/aca0000187" target="_blank">https://doi.org/10.1037/aca0000187</a></p>
+                        </div>
+
+                        <!-- Detect Objects -->
+                        <div class="feature-section">
+                            <div class="form-check">
+                                <input type="checkbox" name="features.detect_objects.active" class="form-check-input">
+                                <label class="form-check-label feature-title">
+                                    <i class="fas fa-search"></i>Object Detection
+                                </label>
+                            </div>
+                            <p class="text-muted mt-2">This function returns boolean values for each specified object below, indicating whether it is present in the image.<br><br><strong>Calculation:</strong><br>The function uses the Florence-2 model to detect objects. Per image, the following metrics are calculated:<br>• <i>contains_[object_name]</i> as a boolean value indicating whether the specified object is detected in the image<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Xiao, B., et al. (2023). Florence-2: Advancing a unified representation for a variety of vision tasks. <span class="cursive-text">arXiv preprint arXiv:2311.06242</span>. <a href="https://arxiv.org/abs/2311.06242" target="_blank">https://arxiv.org/abs/2311.06242</a></p>
+                            <div class="parameter-section" style="display: none;">
+                                <div class="form-group">
+                                    <label class="form-label">Objects to detect</label>
+                                    <div id="objects-to-detect">
+                                    </div>
+                                    <button type="button" class="btn btn-outline-primary mt-2" onclick="addObject()">
+                                        <i class="fas fa-plus"></i> Add Object
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Detect Faces -->
+                        <div class="feature-section">
+                            <div class="form-check">
+                                <input type="checkbox" name="features.detect_faces.active" class="form-check-input">
+                                <label class="form-check-label feature-title">
+                                    <i class="fas fa-user"></i>Face Detection
+                                </label>
+                            </div>
+                            <p class="text-muted mt-2">This function returns four values: Count of faces (<i>face_count</i>), mean confidence of face detection (<i>face_scores</i>), absolute pixel area covered with faces (<i>face_areas_abs</i>), and relative picture area covered with faces (<i>face_areas_rel</i>).<br><br><strong>Calculation:</strong><br>The function uses MTCNN() to identify faces' bounding boxes and their corresponding detection confidence. Per image, the following metrics are calculated:<br>• <i>face_count</i> as Integer value representing the number of faces detected above confidence threshold<br>• <i>face_scores</i> as Float value representing the average confidence score of detected faces<br>• <i>face_areas_abs</i> as Float value representing the total pixel area covered by detected faces<br>• <i>face_areas_rel</i> as Float value in range [0,1] representing the proportion of image area covered by faces<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Zhang, K., Zhang, Z., Li, Z., & Qiao, Y. (2016). Joint face detection and alignment using multitask cascaded convolutional networks. <span class="cursive-text">IEEE Signal Processing Letters</span>, 23(10), 1499–1503. <a href="https://doi.org/10.1109/LSP.2016.2603342" target="_blank">https://doi.org/10.1109/LSP.2016.2603342</a></p>
+                        </div>
+
+                        <!-- Aesthetic Scores -->
+                        <div class="feature-section">
+                            <div class="form-check">
+                                <input type="checkbox" name="features.calculate_aesthetic_scores.active" class="form-check-input" checked>
+                                <label class="form-check-label feature-title">
+                                    <i class="fas fa-star"></i>Aesthetic Quality
+                                </label>
+                            </div>
+                            <p class="text-muted mt-2">This function returns the aesthetic quality score as predicted by NIMA(<i>nima_score</i>).<br><br><strong>Calculation:</strong><br>The function uses the NIMA model to predict aesthetic quality. Per image, the following metric is calculated:<br>• <i>nima_score</i> as the mean aesthetic quality score predicted by the model with values between 0 and 10 and higher values indicating higher aesthetic quality<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Talebi Esfandarani, H., & Milanfar, P. (2017). NIMA: Neural image assessment. <span class="cursive-text">arXiv preprint arXiv:1709.05424</span>. <a href="https://arxiv.org/abs/1709.05424" target="_blank">https://arxiv.org/abs/1709.05424</a></p>
+                        </div>
+
+                        <!-- OCR Text -->
+                        <div class="feature-section">
+                            <div class="form-check">
+                                <input type="checkbox" name="features.get_ocr_text.active" class="form-check-input" checked>
+                                <label class="form-check-label feature-title">
+                                    <i class="fas fa-font"></i>Text Recognition
+                                </label>
+                            </div>
+                            <p class="text-muted mt-2">This function returns three values: a prediction if text is present (<i>ocrHasText</i>), detected text content (<i>ocrText</i>), and detected language (<i>ocrLanguage</i>).<br><strong class="text-danger">Warning: This feature requires Tesseract OCR to be installed in the 'Program Files' directory.</strong><br><br><strong>Calculation:</strong><br>The function uses Tesseract OCR to detect text and language in images. Per image, the following metrics are calculated:<br>• <i>ocrHasText</i> as a boolean value indicating whether any text was detected in the image<br>• <i>ocrText</i> as all detected text in the image<br>• <i>ocrLanguage</i> as the detected language of the text (or empty string if no text is detected)<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Google. (2023). Tesseract OCR [Software]. <a href="https://github.com/tesseract-ocr/tesseract" target="_blank">https://github.com/tesseract-ocr/tesseract</a></p>
+                            <div class="parameter-section" style="display: none;">
+                                <div class="form-group">
+                                    <label class="form-label">Language</label>
+                                    <input type="text" name="features.get_ocr_text.parameters.language" class="form-control" value="eng" placeholder="e.g., eng, fra, deu, spa">
+                                    <small class="form-text text-muted">Language code for OCR (e.g., 'eng' for English, 'fra' for French)<br></small>
+                                    
+                                    <label class="form-label mt-3">Tesseract path (Windows)</label>
+                                    <input type="text" name="features.get_ocr_text.parameters.windows_path_to_tesseract" class="form-control" value="C:\\Program Files\\Tesseract-OCR\\tesseract.exe" placeholder="Path to tesseract.exe">
+                                    <small class="form-text text-muted">Full path to the Tesseract executable on Windows</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- BLIP Description -->
+                        <div class="feature-section">
+                            <div class="form-check">
+                                <input type="checkbox" name="features.describe_blip.active" class="form-check-input">
+                                <label class="form-check-label feature-title">
+                                    <i class="fas fa-comment-alt"></i>Description
+                                </label>
+                            </div>
+                            <p class="text-muted mt-2">This feature returns a generated image description (<i>descrBlip</i>).<br><br><strong>Implementation:</strong><br>The feature uses the BLIP model to generate an image description. Per image, the following is generated:<br>• <i>descrBlip</i> as a generated image description<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Li, J., Li, D., Xiong, C., & Hoi, S. (2022). BLIP: Bootstrapping language-image pre-training for unified vision-language understanding and generation. <span class="cursive-text">arXiv preprint arXiv:2201.12086</span>. <a href="https://arxiv.org/abs/2201.12086" target="_blank">https://arxiv.org/abs/2201.12086</a></p>
+                        </div>
+
+                        <!-- LLM Description -->
+                        <div class="feature-section">
+                            <div class="form-check">
+                                <input type="checkbox" name="features.describe_llm.active" class="form-check-input">
+                                <label class="form-check-label feature-title">
+                                    <i class="fas fa-robot"></i>Advanced Description
+                                </label>
+                            </div>
+                            <p class="text-muted mt-2">This feature returns a detailed image description (<i>descrLLM</i>).<br><br><strong>Implementation:</strong><br>The feature uses the Phi-4-Mini model to generate a detailed image description. Per image, the following is generated:<br>• <i>descrLLM</i> as a detailed image description generated by the model<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Microsoft et al. (2025). Phi-4-Mini technical report: Compact yet powerful multimodal language models via mixture-of-LoRAs. <span class="cursive-text">arXiv preprint arXiv:2503.01743</span>. <a href="https://arxiv.org/abs/2503.01743" target="_blank">https://arxiv.org/abs/2503.01743</a></p>
+                        </div>
+                    </div>
+
+                    <div class="text-center mt-4">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Save Configuration
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function addObject() {
+            const container = document.getElementById('objects-to-detect');
+            const newItem = document.createElement('div');
+            newItem.className = 'object-item';
+            newItem.innerHTML = `
+                <input type="text" name="features.detect_objects.parameters.objects_to_detect[]" class="form-control" value="">
+                <button type="button" class="btn btn-outline-danger" onclick="removeObject(this)">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            container.appendChild(newItem);
+        }
+
+        function removeObject(button) {
+            button.parentElement.remove();
+        }
+
+        // Function to toggle parameter section visibility
+        function toggleParameterSection(checkbox) {
+            let parameterSection;
+            // Check if it's in a feature section or config section
+            const featureSection = checkbox.closest('.feature-section');
+            const configSection = checkbox.closest('.config-section');
+            
+            if (featureSection) {
+                parameterSection = featureSection.querySelector('.parameter-section');
+            } else if (configSection) {
+                parameterSection = configSection.querySelector('.parameter-section');
+            }
+            
+            if (parameterSection) {
+                parameterSection.style.display = checkbox.checked ? 'block' : 'none';
+            }
+        }
+
+        // Add event listeners to all feature checkboxes
+        function setupCheckboxListeners() {
+            // Handle feature section checkboxes
+            document.querySelectorAll('.feature-section input[type="checkbox"]').forEach(checkbox => {
+                // Set initial state
+                toggleParameterSection(checkbox);
+                
+                // Add change event listener
+                checkbox.addEventListener('change', function() {
+                    toggleParameterSection(this);
+                });
+            });
+        }
+
+        // Load configuration when page loads
+        async function loadConfig() {
+            try {
+                const response = await fetch('/config');
+                const config = await response.json();
+                console.log('Loaded config:', config); // Debug log
+                
+                // Handle objects_to_detect array first
+                if (config.features && config.features.detect_objects && 
+                    config.features.detect_objects.parameters && 
+                    config.features.detect_objects.parameters.objects_to_detect) {
+                    const objects = config.features.detect_objects.parameters.objects_to_detect;
+                    console.log('Found objects:', objects); // Debug log
+                    const container = document.getElementById('objects-to-detect');
+                    if (container) {
+                        container.innerHTML = ''; // Clear existing items
+                        objects.forEach(obj => {
+                            console.log('Adding object:', obj); // Debug log
+                            const newItem = document.createElement('div');
+                            newItem.className = 'object-item';
+                            newItem.innerHTML = `
+                                <input type="text" name="features.detect_objects.parameters.objects_to_detect[]" class="form-control" value="${obj}">
+                                <button type="button" class="btn btn-outline-danger" onclick="removeObject(this)">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            `;
+                            container.appendChild(newItem);
+                        });
+                    }
+                }
+
+                // Handle Color Analysis parameters
+                if (config.features && config.features.get_color_features && 
+                    config.features.get_color_features.parameters) {
+                    const params = config.features.get_color_features.parameters;
+                }
+
+                // Handle Figure Ground Analysis parameters
+                if (config.features && config.features.get_figure_ground_relationship_features && 
+                    config.features.get_figure_ground_relationship_features.parameters) {
+                    const params = config.features.get_figure_ground_relationship_features.parameters;
+                    const saliencyInput = document.querySelector('input[name="features.get_figure_ground_relationship_features.parameters.saliency_threshold"]');
+                    const cannyLowInput = document.querySelector('input[name="features.get_figure_ground_relationship_features.parameters.canny_edge_low_threshold"]');
+                    const cannyHighInput = document.querySelector('input[name="features.get_figure_ground_relationship_features.parameters.canny_edge_high_threshold"]');
+                    
+                    if (saliencyInput) saliencyInput.value = params.saliency_threshold || 0.5;
+                    if (cannyLowInput) cannyLowInput.value = params.canny_edge_low_threshold || 100;
+                    if (cannyHighInput) cannyHighInput.value = params.canny_edge_high_threshold || 200;
+                }
+
+                // Handle Visual Complexity parameters
+                if (config.features && config.features.visual_complexity && 
+                    config.features.visual_complexity.parameters) {
+                    const params = config.features.visual_complexity.parameters;
+                    const thresholdInput = document.querySelector('input[name="features.visual_complexity.parameters.threshold"]');
+                    
+                    if (thresholdInput) thresholdInput.value = params.threshold || 25000;
+                }
+
+                // Handle OCR Text parameters
+                if (config.features && config.features.get_ocr_text && 
+                    config.features.get_ocr_text.parameters) {
+                    const params = config.features.get_ocr_text.parameters;
+                    const languageInput = document.querySelector('input[name="features.get_ocr_text.parameters.language"]');
+                    const tesseractPathInput = document.querySelector('input[name="features.get_ocr_text.parameters.windows_path_to_tesseract"]');
+                    
+                    if (languageInput) languageInput.value = params.language || 'eng';
+                    if (tesseractPathInput) tesseractPathInput.value = params.windows_path_to_tesseract || 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe';
+                }
+
+                // Handle Output Formats in general settings
+                if (config.general && config.general.output_formats) {
+                    const excelInput = document.querySelector('input[name="general.output_formats.excel"]');
+                    const csvInput = document.querySelector('input[name="general.output_formats.csv"]');
+                    const excelSummaryStatsInput = document.querySelector('input[name="general.summary_stats.active"]');
+                    const logsInput = document.querySelector('input[name="general.logs.active"]');
+                    
+                    if (excelInput) excelInput.checked = config.general.output_formats.excel !== false; // Default to true
+                    if (csvInput) csvInput.checked = config.general.output_formats.csv !== false; // Default to true
+                    if (excelSummaryStatsInput) excelSummaryStatsInput.checked = config.general.summary_stats?.active !== false; // Default to true
+                    if (logsInput) logsInput.checked = config.general.logs?.active !== false; // Default to true
+                }
+
+
+                
+                // Set form values based on config
+                for (const [key, value] of Object.entries(config)) {
+                    if (typeof value === 'object') {
+                        for (const [subKey, subValue] of Object.entries(value)) {
+                            if (typeof subValue === 'object') {
+                                for (const [paramKey, paramValue] of Object.entries(subValue)) {
+                                    // Skip objects_to_detect as we handled it above
+                                    if (paramKey === 'objects_to_detect') continue;
+                                    
+                                    const input = document.querySelector(`[name="${key}.${subKey}.${paramKey}"]`);
+                                    if (input) {
+                                        if (input.type === 'checkbox') {
+                                            input.checked = paramValue;
+                                        } else {
+                                            input.value = paramValue;
+                                        }
+                                    }
+                                }
+                            } else {
+                                const input = document.querySelector(`[name="${key}.${subKey}"]`);
+                                if (input) {
+                                    if (input.type === 'checkbox') {
+                                        input.checked = subValue;
+                                        // Toggle parameter section based on checkbox state
+                                        toggleParameterSection(input);
+                                    } else {
+                                        input.value = subValue;
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        const input = document.querySelector(`[name="${key}"]`);
+                        if (input) {
+                            if (input.type === 'checkbox') {
+                                input.checked = value;
+                                // Toggle parameter section based on checkbox state
+                                toggleParameterSection(input);
+                            } else {
+                                input.value = value;
+                            }
+                        }
+                    }
+                }
+
+                // Ensure parameter sections are visible if features are active
+                const checkboxes = [
+                    'features.detect_objects.active',
+                    'features.get_color_features.active',
+                    'features.get_figure_ground_relationship_features.active',
+                    'features.visual_complexity.active',
+                    'features.get_ocr_text.active'
+                ];
+
+                checkboxes.forEach(name => {
+                    const checkbox = document.querySelector(`input[name="${name}"]`);
+                    if (checkbox && checkbox.checked) {
+                        let parameterSection;
+                        // Check if it's in a feature section or config section
+                        const featureSection = checkbox.closest('.feature-section');
+                        const configSection = checkbox.closest('.config-section');
+                        
+                        if (featureSection) {
+                            parameterSection = featureSection.querySelector('.parameter-section');
+                        } else if (configSection) {
+                            parameterSection = configSection.querySelector('.parameter-section');
+                        }
+                        
+                        if (parameterSection) {
+                            parameterSection.style.display = 'block';
+                        }
+                    }
+                });
+                
+                // Setup checkbox listeners after loading config
+                setupCheckboxListeners();
+            } catch (error) {
+                console.error('Error loading configuration:', error);
+                document.getElementById('error-text').textContent = 'Error loading configuration: ' + error;
+                document.getElementById('error-message').style.display = 'block';
+            }
+        }
+
+        // Save configuration when form is submitted
+        document.getElementById('config-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const formData = new FormData(e.target);
+            let config = {};
+            
+            // First, get the current configuration to maintain structure
+            try {
+                const response = await fetch('/config');
+                const currentConfig = await response.json();
+                config = currentConfig; // Use current config as base
+                
+                // Preserve the general settings
+                const generalSettings = {
+                    input_dir: currentConfig.general?.input_dir || "..\\..\\data\\test_human_20\\",
+                    output_dir: currentConfig.general?.output_dir || "..\\..\\outputs\\",
+                    verbose: currentConfig.general?.verbose || false,
+                    debug_mode: currentConfig.general?.debug_mode || false,
+                    debug_image_count: currentConfig.general?.debug_image_count || 2
+                };
+                
+                // Ensure general settings are preserved
+                if (!config.general) {
+                    config.general = {};
+                }
+                config.general = { ...config.general, ...generalSettings };
+                
+            } catch (error) {
+                console.error('Error loading current config:', error);
+            }
+            
+            // Ensure features structure exists
+            if (!config.features) {
+                config.features = {};
+            }
+            
+            // Process all checkboxes to ensure feature structures exist
+            document.querySelectorAll('input[type="checkbox"]').forEach(input => {
+                const name = input.name;
+                if (name.startsWith('features.')) {
+                    const keys = name.split('.');
+                    const featureName = keys[1];
+                    if (!config.features[featureName]) {
+                        config.features[featureName] = {};
+                    }
+                    config.features[featureName].active = input.checked;
+                } else if (name === 'general.output_formats.excel') {
+                    // Handle excel output format checkbox
+                    if (!config.general.output_formats) {
+                        config.general.output_formats = {};
+                    }
+                    config.general.output_formats.excel = input.checked;
+                } else if (name === 'general.output_formats.csv') {
+                    // Handle csv output format checkbox
+                    if (!config.general.output_formats) {
+                        config.general.output_formats = {};
+                    }
+                    config.general.output_formats.csv = input.checked;
+                } else if (name === 'general.summary_stats.active') {
+                    // Handle summary stats checkbox
+                    if (!config.general.summary_stats) {
+                        config.general.summary_stats = {};
+                    }
+                    // If the checkbox is hidden, treat it as unchecked
+                    const summaryStatsContainer = input.closest('.form-check');
+                    config.general.summary_stats.active = input.checked && summaryStatsContainer.style.display !== 'none';
+                } else if (name === 'general.logs.active') {
+                    if (!config.general.logs) {
+                        config.general.logs = {};
+                    }
+                    config.general.logs.active = input.checked;
+                }
+            });
+            
+            // Then process other form data
+            for (const [key, value] of formData.entries()) {
+                const keys = key.split('.');
+                let current = config;
+                
+                for (let i = 0; i < keys.length - 1; i++) {
+                    if (!current[keys[i]]) {
+                        current[keys[i]] = {};
+                    }
+                    current = current[keys[i]];
+                }
+                
+                // Skip checkbox values as they're already processed
+                const input = document.querySelector(`[name="${key}"]`);
+                if (input && input.type === 'checkbox') {
+                    continue;
+                }
+                
+                // Handle array values
+                if (keys[keys.length - 1].endsWith('[]')) {
+                    const arrayKey = keys[keys.length - 1].slice(0, -2);
+                    if (!current[arrayKey]) {
+                        current[arrayKey] = [];
+                    } else {
+                        // Clear the array before adding new values
+                        current[arrayKey] = [];
+                    }
+                    // Add all values for this array key
+                    const arrayInputs = document.querySelectorAll(`[name="${key}"]`);
+                    arrayInputs.forEach(input => {
+                        if (input.value.trim() !== '') {  // Only add non-empty values
+                            current[arrayKey].push(input.value);
+                        }
+                    });
+                } else {
+                    // Convert string values to appropriate types
+                    if (value === 'true') {
+                        current[keys[keys.length - 1]] = true;
+                    } else if (value === 'false') {
+                        current[keys[keys.length - 1]] = false;
+                    } else if (!isNaN(value) && value !== '') {
+                        current[keys[keys.length - 1]] = Number(value);
+                    } else {
+                        current[keys[keys.length - 1]] = value;
+                    }
+                }
+            }
+            
+            try {
+                const response = await fetch('/config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(config)
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    document.getElementById('success-message').style.display = 'block';
+                    document.getElementById('error-message').style.display = 'none';
+                    // Redirect to index page after successful save
+                    window.location.href = '/';
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                document.getElementById('error-text').textContent = 'Error saving configuration: ' + error;
+                document.getElementById('error-message').style.display = 'block';
+                document.getElementById('success-message').style.display = 'none';
+            }
+        });
+
+        // Load configuration when page loads
+        loadConfig();
+    </script>
+</body>
+</html> 
