@@ -2,7 +2,7 @@
 
 Image Analyzer is an end-to-end image analysis tool designed around the foundational concepts of comprehensiveness, open source, and transparency. It supports the holistic extraction of a broad and diverse range of image features, from low-level pixel properties to high-level semantic content, allowing its users to capture the full richness of visual data.
 
-This tool is based on our [Image Analyzer](https://dx.doi.org/10.2139/ssrn.5776702) paper. Please refer to the paper or the code if you have questions on how individual features are derived.
+This tool is based on our [Image Analyzer](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5776702) paper. Please refer to the paper or the code if you have questions on how individual features are derived.
 
 The easisest way to use Image Analyzer is via Google Colab. 
 To do so, simply click the Google Colab button below and follow the instructions in our notebook.
