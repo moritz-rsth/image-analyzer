@@ -167,3 +167,5 @@ If you use Image Analyzer, we kindly ask you to cite our corresponding academic 
 
 Thanks to all our amazing contributors 💪  
 [@karolina-tum](https://github.com/karolina-tum) · [@leokinzinger](https://github.com/leokinzinger) · [@maximilian-konrad](https://github.com/maximilian-konrad) · [@NicolasLupke](https://github.com/NicolasLupke) · [@samueldomdey](https://github.com/samueldomdey) · [@satyam-kr03](https://github.com/satyam-kr03) · [@tqm-111](https://github.com/tqm-111) · [@yexner](https://github.com/yexner) · [@zhangsh1416](https://github.com/zhangsh1416)
+
+This research was supported by the TUM Campus Heilbronn Incentive Fund, an initiative that promotes scientific projects connected to the Bildungscampus Heilbronn.
