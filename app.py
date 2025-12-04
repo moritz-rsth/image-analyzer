@@ -70,8 +70,9 @@ def login_required(f):
     return decorated_function
 
 def get_user_folder(user_id, base_folder):
-    """Get user-specific folder path"""
+    """Get user-specific folder path (returns absolute path)"""
     user_folder = os.path.join(base_folder, user_id)
+    user_folder = os.path.abspath(user_folder)  # Always use absolute path
     os.makedirs(user_folder, exist_ok=True)
     return user_folder
 
@@ -262,7 +263,7 @@ def process_images():
         
         # Create zip file with selected output formats in user's output folder
         zip_filename = f"{run_folder_name}.zip"
-        zip_path = os.path.join(user_output_folder, zip_filename)
+        zip_path = os.path.abspath(os.path.join(user_output_folder, zip_filename))
 
         # Always use output_formats from configuration.yaml
         with open(CURR_CONFIG_FILE, 'r') as f:
@@ -337,25 +338,29 @@ def download_file(filename):
     if not user_id:
         return jsonify({'status': 'error', 'message': 'Session expired'}), 401
     
+    # Get user output folder (already absolute from get_user_folder)
     user_output_folder = get_user_folder(user_id, OUTPUT_FOLDER)
     
     # If filename includes user_id prefix, remove it
     if filename.startswith(f"{user_id}/"):
         filename = filename[len(user_id) + 1:]
     
-    # Security: ensure filename is within user's folder after removing prefix
-    # Normalize paths to prevent directory traversal attacks
-    file_path = os.path.normpath(os.path.join(user_output_folder, filename))
-    user_output_folder_abs = os.path.abspath(user_output_folder)
+    # Build the full file path using absolute paths consistently
+    file_path = os.path.abspath(os.path.join(user_output_folder, filename))
     
-    # Check that the resolved path is within the user's output folder
-    if not file_path.startswith(user_output_folder_abs):
+    # Security check: ensure the resolved file path is within the user's output folder
+    # Both paths are now absolute, so we can do a simple prefix check
+    if not file_path.startswith(user_output_folder):
         return jsonify({'status': 'error', 'message': 'Invalid file path'}), 403
     
-    # Check that file exists
-    if not os.path.exists(file_path) or not os.path.isfile(file_path):
+    # Check that file exists and is a file (not a directory)
+    if not os.path.exists(file_path):
         return jsonify({'status': 'error', 'message': 'File not found'}), 404
     
+    if not os.path.isfile(file_path):
+        return jsonify({'status': 'error', 'message': 'Not a file'}), 403
+    
+    # Use the relative filename for send_from_directory (needs relative path from directory)
     return send_from_directory(user_output_folder, filename, as_attachment=True)
 
 @app.route('/uploads/<path:filename>')

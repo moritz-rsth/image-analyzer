@@ -137,6 +137,8 @@ class IA:
         # This prevents double-nesting when output_dir is already set by external code
         if not os.path.basename(self.output_dir).startswith("Image-Analyzer_run_"):
             self.output_dir = os.path.join(self.output_dir, f"Image-Analyzer_run_{self.timestamp}")
+        # Ensure output_dir is always an absolute path for consistency
+        self.output_dir = os.path.abspath(self.output_dir)
         os.makedirs(self.output_dir, exist_ok=True)
         
         # Save the configuration file used for this run
