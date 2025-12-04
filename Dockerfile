@@ -5,13 +5,13 @@ FROM python:3.12-slim
 WORKDIR /app
 
 # Install system dependencies
-# - libgl1-mesa-glx: OpenCV GUI support (headless)
+# - libgl1: OpenCV GUI support (replaces libgl1-mesa-glx in Debian Bookworm)
 # - libglib2.0-0: OpenCV dependencies
 # - tesseract-ocr: OCR support
 # - libtesseract-dev: Tesseract development libraries
 # - build-essential: For compiling Python packages
 RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
+    libgl1 \
     libglib2.0-0 \
     tesseract-ocr \
     libtesseract-dev \
