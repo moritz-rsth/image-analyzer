@@ -231,6 +231,11 @@ def process_images():
 def download_file(filename):
     return send_from_directory(OUTPUT_FOLDER, filename, as_attachment=True)
 
+@app.route('/uploads/<path:filename>')
+def serve_upload(filename):
+    """Serve uploaded images publicly so Replicate can access them via URL"""
+    return send_from_directory(UPLOAD_FOLDER, filename)
+
 @app.route('/config-page')
 def config_new_page():
     return render_template('config_new.html')

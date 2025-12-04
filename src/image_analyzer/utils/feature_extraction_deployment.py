@@ -24,6 +24,7 @@ To use this module:
 
 import cv2
 import io
+import json
 import math
 import numpy as np
 import os
@@ -1602,10 +1603,15 @@ def predict_coco_labels_yolo11(self, df_images):
 
     try:
         # Get parameters from config
-        config_params = self.config.get('predict_coco_labels_yolo11', {}).get('parameters', {})
-        model_id = config_params.get('replicate_model_id', 'ultralytics/yolov11:...')  # TODO: Replace with actual model ID
+        config_params = (
+            self.config
+            .get('features', {})
+            .get('predict_coco_labels_yolo11', {})
+            .get('parameters', {})
+        )
+        model_id = config_params.get('replicate_model_id', None)
         
-        if not model_id or '...' in model_id:
+        if not model_id:
             error_msg = "Replicate model ID not configured. Please set 'replicate_model_id' in config."
             print(f"Error: {error_msg}")
             df['error_yolo11_coco'] = error_msg
@@ -1613,18 +1619,23 @@ def predict_coco_labels_yolo11(self, df_images):
 
         # Load COCO labels (still needed for column names)
         try:
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            coco_names_path = os.path.join(base_dir, 'weights', 'coco.names')
+            download_weights(
+                weight_filename='coco.names', 
+                weight_url='https://opencv-tutorial.readthedocs.io/en/latest/_downloads/a9fb13cbea0745f3d11da9017d1b8467/coco.names'
+            )
             
-            # Download if not exists
-            if not os.path.exists(coco_names_path):
-                download_weights(
-                    weight_filename='coco.names', 
-                    weight_url='https://opencv-tutorial.readthedocs.io/en/latest/_downloads/a9fb13cbea0745f3d11da9017d1b8467/coco.names'
-                )
+            # Use the same path calculation as download_weights
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            weights_dir = os.path.join(base_dir, 'image_analyzer', 'weights')
+            coco_names_path = os.path.join(weights_dir, 'coco.names')
             
-            with open(coco_names_path, 'r') as f:
-                classes = ['coco_' + line.strip() for line in f.readlines()]
+            try:
+                with open(coco_names_path, 'r') as f:
+                    classes = ['coco_' + line.strip() for line in f.readlines()]
+            except Exception as e:
+                print(f"Error loading COCO labels: {str(e)}")
+                return df
+            
         except Exception as e:
             print(f"Error loading COCO labels: {str(e)}")
             return df
@@ -1650,29 +1661,54 @@ def predict_coco_labels_yolo11(self, df_images):
 
                 # Call Replicate API
                 try:
+                    # Build input data with required and optional parameters
+                    input_data = {
+                        "image": image_file,
+                        "return_json": True
+                    }
+                        
                     output = _call_replicate_model(
                         model_id=model_id,
-                        input_data={"image": image_file}
+                        input_data=input_data
                     )
                     
                     image_file.close()
                     
-                    # Parse Replicate output - typically returns list of detections
-                    # Format: [{"class": "person", "confidence": 0.95, "bbox": [x, y, w, h]}, ...]
-                    if isinstance(output, list):
-                        for detection in output:
-                            class_name = detection.get('class', detection.get('label', ''))
-                            confidence = float(detection.get('confidence', detection.get('score', 0.0)))
-                            
-                            # Find matching COCO class
-                            class_idx = None
+                    # Parse Replicate output - Ultralytics YOLO11 returns JSON string
+                    # Format: [{"name": "person", "class": 0, "confidence": 0.84, "box": {...}}, ...]
+                    detections = []
+                    
+                    # Handle JSON string output
+                    try:
+                        detections = json.loads(output)
+                    except json.JSONDecodeError:
+                        print(f"Warning: Failed to parse JSON output for {image_path}")
+                        continue
+                    
+                    # Process detections (same logic as original function)
+                    for detection in detections:
+                        if not isinstance(detection, dict):
+                            continue
+                        
+                        # Get class: prefer direct class index, fallback to name
+                        class_idx = None
+                        class_id = detection.get('class')
+                        class_name = detection.get('name', '')
+                        confidence = float(detection.get('confidence', 0.0))
+                        
+                        # If class is an integer (COCO class ID), use it directly
+                        if isinstance(class_id, int) and 0 <= class_id < len(classes):
+                            class_idx = class_id
+                        elif class_name:
+                            # Otherwise, match by name (case-insensitive)
                             for i, coco_class in enumerate(classes):
                                 if coco_class.replace('coco_', '').lower() == class_name.lower():
                                     class_idx = i
                                     break
-                            
-                            if class_idx is not None and confidence > df.at[idx, classes[class_idx]]:
-                                df.at[idx, classes[class_idx]] = confidence
+                        
+                        # Update confidence if higher than current (same as original)
+                        if class_idx is not None and confidence > df.at[idx, classes[class_idx]]:
+                            df.at[idx, classes[class_idx]] = confidence
 
                 except Exception as e:
                     error = f"Replicate API error: {str(e)}"
@@ -1698,7 +1734,11 @@ def predict_coco_labels_yolo11(self, df_images):
 
 def predict_imagenet_classes_yolo11(self, df_images):
     """
-    Predicts ImageNet classes in a list of images using YOLO11 classification model via Replicate API.
+    Predicts ImageNet classes in a list of images using YOLO11 via Replicate API.
+    
+    Note: Since Replicate may only provide detection models, this function uses detection
+    results and maps detected class names to ImageNet format. Only detected classes will
+    have non-zero probabilities.
 
     :param self: IA object
     :param df_images: DataFrame containing image filePaths.
@@ -1712,10 +1752,15 @@ def predict_imagenet_classes_yolo11(self, df_images):
     
     try:
         # Get parameters from config
-        config_params = self.config.get('predict_imagenet_classes_yolo11', {}).get('parameters', {})
-        model_id = config_params.get('replicate_model_id', 'ultralytics/yolov11:...')  # TODO: Replace with actual model ID
+        config_params = (
+            self.config
+            .get('features', {})
+            .get('predict_imagenet_classes_yolo11', {})
+            .get('parameters', {})
+        )
+        model_id = config_params.get('replicate_model_id', None)
         
-        if not model_id or '...' in model_id:
+        if not model_id:
             error_msg = "Replicate model ID not configured. Please set 'replicate_model_id' in config."
             print(f"Error: {error_msg}")
             df['error_yolo11_imagenet'] = error_msg
@@ -1738,34 +1783,49 @@ def predict_imagenet_classes_yolo11(self, df_images):
 
                 # Call Replicate API
                 try:
+                    # Build input data with required parameters
+                    input_data = {
+                        "image": image_file,
+                        "return_json": True
+                    }
+                    
                     output = _call_replicate_model(
                         model_id=model_id,
-                        input_data={
-                            "image": image_file,
-                            "task": "classify"  # Specify classification task
-                        }
+                        input_data=input_data
                     )
                     
                     image_file.close()
                     
-                    # Parse Replicate output - typically returns probabilities for all classes
-                    # Format depends on model, but usually dict with class names and probabilities
-                    if isinstance(output, dict):
-                        # If output is dict with class probabilities
-                        for class_name, prob in output.items():
+                    # Parse Replicate output - Ultralytics YOLO11 returns JSON string
+                    # Format: [{"name": "person", "class": 0, "confidence": 0.84, "box": {...}}, ...]
+                    detections = []
+                    
+                    # Handle JSON string output
+                    try:
+                        detections = json.loads(output)
+                    except json.JSONDecodeError:
+                        print(f"Warning: Failed to parse JSON output for {image_path}")
+                        continue
+                    
+                    # Process detections - map detected classes to ImageNet format
+                    # Similar to original: use confidence as probability, but only for detected classes
+                    for detection in detections:
+                        if not isinstance(detection, dict):
+                            continue
+                        
+                        # Get class name and confidence
+                        class_name = detection.get('name', '')
+                        confidence = float(detection.get('confidence', 0.0))
+                        
+                        # Use class name to create ImageNet column (matching original format)
+                        if class_name:
                             column_name = f"imagenet_{class_name}"
+                            # Initialize column if not exists (same pattern as original)
                             if column_name not in all_probs:
                                 all_probs[column_name] = [0.0] * len(df_images)
-                            all_probs[column_name][idx] = float(prob)
-                    elif isinstance(output, list):
-                        # If output is list of {class: name, probability: prob}
-                        for item in output:
-                            class_name = item.get('class', item.get('label', ''))
-                            prob = float(item.get('probability', item.get('prob', item.get('confidence', 0.0))))
-                            column_name = f"imagenet_{class_name}"
-                            if column_name not in all_probs:
-                                all_probs[column_name] = [0.0] * len(df_images)
-                            all_probs[column_name][idx] = prob
+                            # Store probability (use confidence as probability, keep maximum if multiple detections)
+                            if confidence > all_probs[column_name][idx]:
+                                all_probs[column_name][idx] = confidence
 
                 except Exception as e:
                     error = f"Replicate API error: {str(e)}"
@@ -1782,6 +1842,7 @@ def predict_imagenet_classes_yolo11(self, df_images):
                 continue
         
         # Create a DataFrame from the collected probabilities and join with original DataFrame
+        # Same pattern as original function
         if all_probs:
             probs_df = pd.DataFrame(all_probs)
             result_df = pd.concat([df, probs_df], axis=1)

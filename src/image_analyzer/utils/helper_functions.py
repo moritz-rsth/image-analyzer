@@ -56,5 +56,18 @@ def download_weights(weight_filename, weight_url):
     # Check and download the config file if it doesn't exist
     if not os.path.isfile(weights_file):
         print(f"Weights {weights_file} are not stored locally. Downloading...")
-        with tqdm(unit='B', unit_scale=True, miniters=1, desc=weights_file) as pbar:
-            urllib.request.urlretrieve(weight_url, weights_file, reporthook=reporthook)
+        # Create a request with User-Agent header to avoid 403 errors
+        req = urllib.request.Request(weight_url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'})
+        
+        with urllib.request.urlopen(req) as response:
+            # Get file size from headers if available
+            total_size = int(response.headers.get('Content-Length', 0))
+            
+            with tqdm(total=total_size, unit='B', unit_scale=True, miniters=1, desc=weights_file) as pbar:
+                with open(weights_file, 'wb') as f:
+                    while True:
+                        chunk = response.read(8192)  # Read in 8KB chunks
+                        if not chunk:
+                            break
+                        f.write(chunk)
+                        pbar.update(len(chunk))

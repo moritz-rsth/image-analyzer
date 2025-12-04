@@ -9,7 +9,7 @@ features:
   calculate_image_clarity:
     active: false
   describe_blip:
-    active: false
+    active: true
     parameters:
       model: Salesforce/blip-image-captioning-base
       processor: Salesforce/blip-image-captioning-base
@@ -33,7 +33,7 @@ features:
       confidence_threshold: 0.9
       replicate_model_id: None
   detect_objects:
-    active: true
+    active: false
     parameters:
       objects_to_detect:
       - person
@@ -65,13 +65,13 @@ features:
       language: eng
       windows_path_to_tesseract: C:\\Program Files\\Tesseract-OCR\\tesseract.exe
   predict_coco_labels_yolo11:
-    active: false
+    active: true
     parameters:
-      replicate_model_id: ultralytics/yolov11:your-coco-version-id-here
+      replicate_model_id: ultralytics/yolo11n:2eb2c7ebcd7fea7f3e64630118d058e1985338e9d505dd8eb9786e6f06704a96
   predict_imagenet_classes_yolo11:
     active: false
     parameters:
-      replicate_model_id: ultralytics/yolov11:your-imagenet-version-id-here
+      replicate_model_id: ultralytics/yolo11n:2eb2c7ebcd7fea7f3e64630118d058e1985338e9d505dd8eb9786e6f06704a96
   self_similarity:
     active: false
   visual_complexity:
@@ -87,7 +87,7 @@ general:
   output_dir: ..\..\outputs\
   output_formats:
     csv: true
-    excel: true
+    excel: false
   summary_stats:
-    active: true
+    active: false
   verbose: false

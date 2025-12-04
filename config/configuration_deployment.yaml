@@ -74,12 +74,12 @@ features:
     active: false
     parameters:
       # Replicate model ID für YOLO11 COCO Detection
-      replicate_model_id: ultralytics/yolov11:your-coco-version-id-here # TODO
+      replicate_model_id: ultralytics/yolo11n:2eb2c7ebcd7fea7f3e64630118d058e1985338e9d505dd8eb9786e6f06704a96
   predict_imagenet_classes_yolo11:
     active: false
     parameters:
       # Replicate model ID für YOLO11 ImageNet Classification
-      replicate_model_id: ultralytics/yolov11:your-imagenet-version-id-here # TODO
+      replicate_model_id: ultralytics/yolo11n:2eb2c7ebcd7fea7f3e64630118d058e1985338e9d505dd8eb9786e6f06704a96
   self_similarity:
     active: false
   visual_complexity:
@@ -95,7 +95,7 @@ general:
   output_dir: ..\..\outputs\
   output_formats:
     csv: true
-    excel: true
+    excel: false
   summary_stats:
-    active: true
+    active: false
   verbose: false
