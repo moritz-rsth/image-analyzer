@@ -1,0 +1,80 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Deployment files (not needed in Docker)
+deployments/
+nixpacks.toml
+Procfile
+railway.json
+startup-script.sh
+gunicorn_config.py
+
+# Data and outputs (user-generated)
+uploads/*
+!uploads/.gitkeep
+outputs/*
+!outputs/.gitkeep
+data/
+
+# Weights (will be downloaded at runtime if needed)
+src/image_analyzer/weights/*
+
+# Jupyter notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+
+# Requirements (only deployment version needed)
+requirements.txt
+requirementsColab_py312.txt
+
