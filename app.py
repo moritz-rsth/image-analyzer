@@ -18,6 +18,36 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-in-production')
+
+# Detect deployment platform and configure accordingly
+DEPLOYMENT_PLATFORM = os.getenv('DEPLOYMENT_PLATFORM', 'local')
+PORT = int(os.getenv('PORT', 5000))
+
+# Auto-configure APP_BASE_URL if not set
+# APP_BASE_URL is used by Replicate API to access uploaded images via public URLs
+if not os.getenv('APP_BASE_URL'):
+    # Auto-detect Railway (Railway sets RAILWAY_PUBLIC_DOMAIN automatically)
+    if os.getenv('RAILWAY_ENVIRONMENT'):
+        DEPLOYMENT_PLATFORM = 'railway'
+        railway_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN')
+        if railway_domain:
+            # Railway provides HTTPS automatically
+            os.environ['APP_BASE_URL'] = f"https://{railway_domain}"
+        else:
+            # Fallback (shouldn't happen on Railway)
+            os.environ['APP_BASE_URL'] = f"http://localhost:{PORT}"
+    
+    # Auto-detect Google Cloud
+    elif os.getenv('GOOGLE_CLOUD_PROJECT'):
+        DEPLOYMENT_PLATFORM = 'gcp'
+        # GCP: User must set APP_BASE_URL manually to their VM's external IP
+        # For now, use placeholder (user should set this in .env)
+        os.environ['APP_BASE_URL'] = f"http://localhost:{PORT}"  # User should override
+    
+    # Local development: optional, defaults to localhost
+    else:
+        os.environ['APP_BASE_URL'] = f"http://localhost:{PORT}"
+
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 UPLOAD_FOLDER = 'uploads'
@@ -368,7 +398,8 @@ def handle_join_session(data):
 if __name__ == '__main__':
     # Only run with debug in development
     if os.getenv('FLASK_ENV') == 'development':
-        socketio.run(app, debug=True, host='0.0.0.0', port=int(os.getenv('PORT', 5000)))
+        socketio.run(app, debug=True, host='0.0.0.0', port=PORT)
     else:
         # In production, Gunicorn will handle this
+        # Railway and GCP use Gunicorn via Procfile/startup-script
         pass
