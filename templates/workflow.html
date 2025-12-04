@@ -455,6 +455,15 @@
         const socket = io();
         let currentSessionId = null;
 
+        // Handle authentication errors (401/403) - redirect to login
+        function handleAuthError(response) {
+            if (response.status === 401 || response.status === 403) {
+                window.location.href = '/login';
+                return true; // Indicates error was handled
+            }
+            return false; // No auth error
+        }
+
         // Socket.IO event handlers
         socket.on('connect', function() {
             console.log('Connected to server');
