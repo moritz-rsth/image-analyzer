@@ -326,10 +326,13 @@
 </head>
 <body>
     <nav class="navbar">
-        <div class="container-fluid">
+        <div class="container-fluid d-flex justify-content-between align-items-center">
             <a class="navbar-brand" href="/">
                 <i class="fas fa-camera-retro me-2"></i>
                 Image Analyzer
+            </a>
+            <a href="/logout" class="btn btn-outline-danger btn-sm">
+                <i class="fas fa-sign-out-alt me-2"></i>Logout
             </a>
         </div>
     </nav>
@@ -691,8 +694,12 @@
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
+            .then(response => {
+                if (handleAuthError(response)) return null;
+                return response.json();
+            })
             .then(data => {
+                if (!data) return;
                 if (data.status === 'success') {
                     currentBatchFolder = data.batch_folder;
                     showUploadMessage('success', data.message);
@@ -721,8 +728,12 @@
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
+            .then(response => {
+                if (handleAuthError(response)) return null;
+                return response.json();
+            })
             .then(data => {
+                if (!data) return;
                 if (data.status === 'success') {
                     currentBatchFolder = data.batch_folder;
                     showUploadMessage('success', data.message);
@@ -759,8 +770,12 @@
 
             // Get the current configuration for output formats
             fetch('/config')
-            .then(response => response.json())
+            .then(response => {
+                if (handleAuthError(response)) return null;
+                return response.json();
+            })
             .then(config => {
+                if (!config) return;
                 const excelFormat = config.general?.output_formats?.excel ?? true;
                 const csvFormat = config.general?.output_formats?.csv ?? true;
 
@@ -788,11 +803,12 @@
                 });
             })
             .then(response => {
-                if (response) {
-                    return response.json();
-                }
+                if (!response) return null;
+                if (handleAuthError(response)) return null;
+                return response.json();
             })
             .then(data => {
+                if (!data) return;
                 if (data && data.status === 'success') {
                     showProcessMessage('success', data.message);
                     // Clear previous download links
