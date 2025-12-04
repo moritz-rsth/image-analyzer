@@ -102,10 +102,6 @@ PORT=5000
 FLASK_ENV=production
 ```
 
-**Important:**
-- `APP_BASE_URL` is **required** on GCP - set it to your VM's external IP address
-- The app will auto-detect GCP but cannot determine your IP automatically
-
 **Generate values:**
 ```bash
 # SECRET_KEY
@@ -117,7 +113,7 @@ python3 -c "import hashlib; print(hashlib.sha256(b'your-password').hexdigest())"
 
 ### 8. Configure Gunicorn
 
-The Gunicorn config is in `deployments/gcp/gunicorn_config.py`. Adjust workers based on your VM size:
+The Gunicorn config is in `gunicorn_config.py` in the root directory. Adjust workers based on your VM size:
 
 - `e2-standard-2`: 5 workers
 - `e2-standard-4`: 9 workers
@@ -142,7 +138,7 @@ After=network.target
 User=YOUR_USERNAME
 WorkingDirectory=/path/to/image-analyzer
 Environment="PATH=/path/to/image-analyzer/venv/bin"
-ExecStart=/path/to/image-analyzer/venv/bin/gunicorn -c deployments/gcp/gunicorn_config.py app:app
+ExecStart=/path/to/image-analyzer/venv/bin/gunicorn -c gunicorn_config.py app:app
 Restart=always
 
 [Install]
@@ -160,7 +156,7 @@ sudo systemctl status image-analyzer
 
 ### 10. Alternative: Use Startup Script
 
-You can also use the startup script (`deployments/gcp/startup-script.sh`):
+You can also use the startup script (`startup-script.sh` in root):
 
 1. Edit the script with your actual paths
 2. Upload to Google Cloud Storage

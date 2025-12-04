@@ -16,7 +16,7 @@ This guide explains how to deploy the Image Analyzer to Railway.
 2. Click "New Project"
 3. Select "Deploy from GitHub repo"
 4. Choose your `image-analyzer` repository
-5. Railway will auto-detect the `Procfile` in `deployments/railway/`
+5. Railway will auto-detect the `railway.json` in the root directory
 
 ### 2. Configure Environment Variables
 
@@ -37,21 +37,22 @@ FLASK_ENV=production
 
 ### 3. Configure Build Settings
 
-Railway should auto-detect:
-- **Build Command:** (auto-detected from Nixpacks)
-- **Start Command:** Uses `Procfile` from `deployments/railway/Procfile`
+Railway will automatically use:
+- **Build Command:** From `railway.json` → installs from `requirementsDeployment.txt`
+- **Start Command:** From `railway.json` → uses Gunicorn with eventlet
 
-If needed, manually set:
-- **Root Directory:** `/` (root of repo)
-- **Build Command:** `pip install -r requirementsDeployment.txt`
-- **Start Command:** `gunicorn --worker-class eventlet --workers 1 --bind 0.0.0.0:$PORT --timeout 120 app:app`
+**Important:** The project includes `railway.json` in the root directory which tells Railway to:
+- Use `requirementsDeployment.txt` instead of `requirements.txt`
+- Start the app with Gunicorn
+
+No manual configuration needed - Railway will detect `railway.json` automatically.
 
 ### 4. Deploy
 
 1. Railway will automatically deploy on every push to main branch
 2. Or click "Deploy" in Railway dashboard
 3. Wait for build to complete
-4. Your app will be available at: `https://image-analyzer.up.railway.app`
+4. Your app will be available at: `https://image-analyzer.up.railway.app` (or your custom domain)
 
 ## Railway-Specific Features
 
@@ -90,7 +91,7 @@ To use a custom domain:
 
 ### SocketIO Not Working
 - Ensure `eventlet` is installed (already in requirementsDeployment.txt)
-- Check that Gunicorn uses `eventlet` worker class (configured in Procfile)
+- Check that Gunicorn uses `eventlet` worker class (configured in railway.json)
 
 ## Monitoring
 

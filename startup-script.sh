@@ -17,7 +17,7 @@ echo "Starting Image Analyzer on Google Cloud..."
 # pip install -r requirementsDeployment.txt
 
 # Start Gunicorn
-# gunicorn -c deployments/gcp/gunicorn_config.py app:app
+# gunicorn -c gunicorn_config.py app:app
 
 echo "Startup script placeholder - configure before deployment"
 
