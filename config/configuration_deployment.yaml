@@ -89,10 +89,10 @@ features:
 general:
   debug_image_count: 5
   debug_mode: false
-  input_dir: ..\..\data\test_human_20\
+  input_dir: ../../data/test_human_20/
   logs:
     active: true
-  output_dir: ..\..\outputs\
+  output_dir: ../../outputs/
   output_formats:
     csv: true
     excel: false
