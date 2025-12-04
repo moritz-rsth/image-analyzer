@@ -243,7 +243,7 @@ def process_images():
         # Set output directory to user's output folder
         user_output_folder = get_user_folder(user_id, OUTPUT_FOLDER)
         ia.output_dir = user_output_folder
-        # Reset the pipeline for clean state
+        # Reset the pipeline for clean state (this will generate a new timestamp)
         ia.reset_pipeline()
         
         # Process the images with progress callback (pass user_id for room lookup)
@@ -252,9 +252,13 @@ def process_images():
         
         results, logs = ia.process_batch(progress_callback=user_progress_callback)
         
-        # Create timestamp for the run
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        # Get the timestamp from the pipeline (already created in reset_pipeline)
+        timestamp = ia.timestamp
         run_folder_name = f"Image-Analyzer_run_{timestamp}"
+        
+        # The pipeline creates files in ia.output_dir (which includes the run folder)
+        # Use that directory as the source for the ZIP
+        pipeline_output_dir = ia.output_dir
         
         # Create zip file with selected output formats in user's output folder
         zip_filename = f"{run_folder_name}.zip"
@@ -265,61 +269,44 @@ def process_images():
             config = yaml.safe_load(f)
         output_formats = config.get('general', {}).get('output_formats', {'excel': True, 'csv': True})
         
+        # Create ZIP file from files that the pipeline already saved
         with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            # Add results files based on selected formats
+            # Add results files from pipeline output directory
             if output_formats.get('excel', True):
-                excel_filename = f'results_{timestamp}.xlsx'
-                excel_path = os.path.join(user_output_folder, excel_filename)
-                results.to_excel(excel_path, index=False)
-                zipf.write(excel_path, f"{run_folder_name}/results.xlsx")
+                excel_path = os.path.join(pipeline_output_dir, 'results.xlsx')
+                if os.path.exists(excel_path):
+                    zipf.write(excel_path, f"{run_folder_name}/results.xlsx")
                 
             if output_formats.get('csv', True):
-                csv_filename = f'results_{timestamp}.csv'
-                csv_path = os.path.join(user_output_folder, csv_filename)
-                results.to_csv(csv_path, index=False)
-                zipf.write(csv_path, f"{run_folder_name}/results.csv")
+                csv_path = os.path.join(pipeline_output_dir, 'results.csv')
+                if os.path.exists(csv_path):
+                    zipf.write(csv_path, f"{run_folder_name}/results.csv")
             
             # Add logs if enabled
             if config.get('general', {}).get('logs', {}).get('active', False):
-                logs_csv_filename = f'logs_{timestamp}.csv'
-                logs_csv_path = os.path.join(user_output_folder, logs_csv_filename)
-                logs.to_csv(logs_csv_path, index=False)
-                zipf.write(logs_csv_path, f"{run_folder_name}/logs.csv")
+                logs_csv_path = os.path.join(pipeline_output_dir, 'logs.csv')
+                if os.path.exists(logs_csv_path):
+                    zipf.write(logs_csv_path, f"{run_folder_name}/logs.csv")
+                
+                logs_xlsx_path = os.path.join(pipeline_output_dir, 'logs.xlsx')
+                if os.path.exists(logs_xlsx_path):
+                    zipf.write(logs_xlsx_path, f"{run_folder_name}/logs.xlsx")
             
             # Add summary stats if enabled
             if config.get('general', {}).get('summary_stats', {}).get('active', False):
-                summary_stats_filename = f'summary_stats_{timestamp}.xlsx'
-                summary_stats_path = os.path.join(user_output_folder, summary_stats_filename)
-                # Calculate and save summary stats
-                numeric_cols = results.select_dtypes(include=['int64', 'float64']).columns
-                if len(numeric_cols) > 0:
-                    summary_stats = results[numeric_cols].agg(['count', 'mean', 'std', 'min', 'max'])
-                    summary_stats.to_excel(summary_stats_path)
-                    zipf.write(summary_stats_path, f"{run_folder_name}/summary_stats.xlsx")
+                summary_stats_csv_path = os.path.join(pipeline_output_dir, 'summary_statistics.csv')
+                if os.path.exists(summary_stats_csv_path):
+                    zipf.write(summary_stats_csv_path, f"{run_folder_name}/summary_statistics.csv")
+                
+                summary_stats_xlsx_path = os.path.join(pipeline_output_dir, 'summary_statistics.xlsx')
+                if os.path.exists(summary_stats_xlsx_path):
+                    zipf.write(summary_stats_xlsx_path, f"{run_folder_name}/summary_statistics.xlsx")
             
-            # Add configuration file used for this run
-            config_filename = f'configuration_{timestamp}.yaml'
-            config_path = os.path.join(user_output_folder, config_filename)
-            
-            # Copy the current configuration file to the output folder with timestamp
-            if os.path.exists(CURR_CONFIG_FILE):
-                shutil.copy2(CURR_CONFIG_FILE, config_path)
+            # Add configuration file used for this run (pipeline already saved it)
+            config_path = os.path.join(pipeline_output_dir, 'configuration.yaml')
+            if os.path.exists(config_path):
                 zipf.write(config_path, f"{run_folder_name}/configuration.yaml")
-                print(f"### Configuration file added to ZIP: {config_filename} ###")
-            else:
-                # If config file doesn't exist, save the current config as YAML
-                with open(config_path, 'w') as f:
-                    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
-                zipf.write(config_path, f"{run_folder_name}/configuration.yaml")
-                print(f"### Configuration saved and added to ZIP: {config_filename} ###")
-        
-        # Clean up individual files
-        for filename in [f'results_{timestamp}.xlsx', f'results_{timestamp}.csv', 
-                        f'logs_{timestamp}.csv', f'configuration_{timestamp}.yaml',
-                        f'summary_stats_{timestamp}.xlsx']:
-            file_path = os.path.join(user_output_folder, filename)
-            if os.path.exists(file_path):
-                os.remove(file_path)
+                print(f"### Configuration file added to ZIP from: {config_path} ###")
         
         # Clear user's processing session
         if user_id in user_processing:
@@ -347,16 +334,27 @@ def process_images():
 def download_file(filename):
     """Download file from user's output folder"""
     user_id = session.get('user_id')
-    user_output_folder = get_user_folder(user_id, OUTPUT_FOLDER)
+    if not user_id:
+        return jsonify({'status': 'error', 'message': 'Session expired'}), 401
     
-    # Security: ensure filename is within user's folder
-    file_path = os.path.join(user_output_folder, filename)
-    if not file_path.startswith(os.path.abspath(user_output_folder)):
-        return jsonify({'status': 'error', 'message': 'Invalid file path'}), 403
+    user_output_folder = get_user_folder(user_id, OUTPUT_FOLDER)
     
     # If filename includes user_id prefix, remove it
     if filename.startswith(f"{user_id}/"):
         filename = filename[len(user_id) + 1:]
+    
+    # Security: ensure filename is within user's folder after removing prefix
+    # Normalize paths to prevent directory traversal attacks
+    file_path = os.path.normpath(os.path.join(user_output_folder, filename))
+    user_output_folder_abs = os.path.abspath(user_output_folder)
+    
+    # Check that the resolved path is within the user's output folder
+    if not file_path.startswith(user_output_folder_abs):
+        return jsonify({'status': 'error', 'message': 'Invalid file path'}), 403
+    
+    # Check that file exists
+    if not os.path.exists(file_path) or not os.path.isfile(file_path):
+        return jsonify({'status': 'error', 'message': 'File not found'}), 404
     
     return send_from_directory(user_output_folder, filename, as_attachment=True)
 

@@ -66,11 +66,13 @@ class IA:
         # Reset timestamp for new batch
         self.timestamp = time.strftime("%Y%m%d_%H%M%S")
         
-        # Update output directory with new timestamp
-        if hasattr(self, 'config') and self.config:
-            base_output_dir = self.config.get("general", {}).get("output_dir", "outputs")
-            self.output_dir = os.path.join(base_output_dir, f"Image-Analyzer_run_{self.timestamp}")
-            os.makedirs(self.output_dir, exist_ok=True)
+        # Only update output directory from config if output_dir hasn't been explicitly set
+        # This allows external code (like Flask app) to override the output directory
+        if not hasattr(self, 'output_dir') or self.output_dir is None:
+            if hasattr(self, 'config') and self.config:
+                base_output_dir = self.config.get("general", {}).get("output_dir", "outputs")
+                self.output_dir = os.path.join(base_output_dir, f"Image-Analyzer_run_{self.timestamp}")
+                os.makedirs(self.output_dir, exist_ok=True)
         
         print(f"### Pipeline reset for new batch - Timestamp: {self.timestamp} ###")
 
@@ -130,8 +132,11 @@ class IA:
                                  - message: str
         :return: A DataFrame containing the features extracted from each image.
         """
-        # Create output directory
-        self.output_dir = os.path.join(self.output_dir , f"Image-Analyzer_run_{self.timestamp}")
+        # Create output directory with timestamp subfolder
+        # Only add timestamp subfolder if output_dir doesn't already contain a timestamp folder
+        # This prevents double-nesting when output_dir is already set by external code
+        if not os.path.basename(self.output_dir).startswith("Image-Analyzer_run_"):
+            self.output_dir = os.path.join(self.output_dir, f"Image-Analyzer_run_{self.timestamp}")
         os.makedirs(self.output_dir, exist_ok=True)
         
         # Save the configuration file used for this run
