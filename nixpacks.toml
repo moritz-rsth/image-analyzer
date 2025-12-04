@@ -1,0 +1,18 @@
+# nixpacks.toml
+# Override Nixpacks default behavior to use requirementsDeployment.txt instead of requirements.txt
+
+[phases.setup]
+nixPkgs = ["python312", "pip"]
+
+[phases.install]
+cmds = [
+  "pip install --upgrade pip",
+  "pip install -r requirementsDeployment.txt"
+]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "gunicorn --worker-class eventlet --workers 1 --bind 0.0.0.0:$PORT --timeout 120 app:app"
+
