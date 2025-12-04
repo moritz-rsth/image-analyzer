@@ -3,7 +3,6 @@
 
 [phases.install]
 cmds = [
-  "pip install --upgrade pip",
   "pip install -r requirementsDeployment.txt"
 ]
 
