@@ -4,11 +4,11 @@ import gc
 import os
 import pandas as pd
 import time
-import torch
 import random
 
 # Project-specific imports
-from ..utils.feature_extraction import *
+# Verwende die Deployment-Version der Feature-Etraction-Functions
+from ..utils.feature_extraction_deployment import *
 from ..utils.helper_functions import load_config
 
 class IA:
@@ -43,8 +43,10 @@ class IA:
         self.multi_processing = self.config.get("general", {}).get("multi_processing", {}).get("active", False)
         self.num_processes = self.config.get("general", {}).get("multi_processing", {}).get("num_processes", 4)
 
-        self.cuda_availability = torch.cuda.is_available()
-        self.device = "cuda" if self.cuda_availability else "cpu"
+        # Running deployment on CPU Only Hardware
+        self.cuda_availability = False
+        self.device = "cpu"
+
         # Console outputs
         if self.cuda_availability:
             print(f"### Using GPU (CUDA) ###")
@@ -56,9 +58,6 @@ class IA:
         Reset the pipeline state for a new batch.
         This method clears any cached data and resets internal state.
         """
-        # Clear GPU cache if available
-        if self.cuda_availability:
-            torch.cuda.empty_cache()
         
         # Force garbage collection multiple times to ensure cleanup
         for _ in range(3):
@@ -169,7 +168,7 @@ class IA:
                 get_ocr_text,
                 describe_blip,
                 describe_llm,
-                describe_llm_api,
+                describe_llm_openai_api,
                 predict_coco_labels_yolo11,
                 predict_imagenet_classes_yolo11
             ]
@@ -204,9 +203,7 @@ class IA:
         for idx, row in df_logs.iterrows():
             # Flush cache
             gc.collect()
-            if self.cuda_availability:
-                torch.cuda.empty_cache()
-
+            
             func = row['functions']
             func_name = func.__name__
             
@@ -243,9 +240,7 @@ class IA:
                 self.save_results(df_temp)
                 self.save_logs(df_logs)
 
-                # Run GC and empty cuda cache
-                if self.cuda_availability:
-                    torch.cuda.empty_cache()
+                # Run GC
                 gc.collect()
                 
                 processed_count += 1

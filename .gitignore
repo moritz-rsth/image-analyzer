@@ -166,6 +166,7 @@ Thumbs.db
 DS_Store
 uploads/*
 outputs/*
+..\\..\\outputs\\*/
 src/image_analyzer/weights/*
 impl.py
 src/image_analyzer/train/*

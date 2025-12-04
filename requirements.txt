@@ -112,7 +112,7 @@ sympy==1.13.1
 tensorboard==2.18.0
 tensorboard-data-server==0.7.2
 tensorflow[with-cuda]==2.18.0
-tensorflow-io-gcs-filesystem==0.31.0
+tensorflow-io-gcs-filesystem==0.37.1
 termcolor==2.5.0
 tifffile==2024.7.24
 timm==1.0.15

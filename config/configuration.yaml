@@ -1,55 +1,60 @@
 features:
   calculate_aesthetic_scores:
-    active: true
+    active: false
     parameters:
       weight_filename: weights_mobilenet_aesthetic_0.07.hdf5
       weight_url: https://github.com/idealo/image-quality-assessment/blob/master/models/MobileNet/weights_mobilenet_aesthetic_0.07.hdf5?raw=true
   calculate_hue_proportions:
-    active: true
+    active: false
   calculate_image_clarity:
-    active: true
+    active: false
   describe_blip:
-    active: true
+    active: false
     parameters:
       model: Salesforce/blip-image-captioning-base
       processor: Salesforce/blip-image-captioning-base
+      replicate_model_id: salesforce/blip:2e1dddc8621f72155f24cf2e0adbde548458d3cab9f00c0139eea840d0ac4746
   describe_llm:
     active: false
     parameters:
       max_new_tokens: 1000
       model: microsoft/Phi-4-multimodal-instruct
-  describe_llm_api:
+      replicate_model_id: microsoft/phi-4-multimodal-instruct:40c8f5c03ce250441855e776528bafd11cdb302c6677613acc0942c58dbd0afa
+  describe_llm_openai_api:
     active: false
     parameters:
-      model: gpt-4o
       api_key: your_api_key
       max_tokens: 1000
+      model: gpt-4o
       prompt: Describe the image.
   detect_faces:
-    active: true
-    parameters:
-      confidence_threshold: 0.9
-  detect_objects:
     active: false
     parameters:
+      confidence_threshold: 0.9
+      replicate_model_id: None
+  detect_objects:
+    active: true
+    parameters:
       objects_to_detect:
-      - object
-      - animal
-      - human
-      - consumer
-      - consumer product
+      - person
+      - poster
+      - pizza
+      - building
+      - window
+      - glasses
+      replicate_model_id: lucataco/florence-2-base:c81609117f666d3a86b262447f80d41ac5158a76adb56893301843a23165eaf8
   estimate_noise:
-    active: true
+    active: false
   extract_basic_image_features:
-    active: true
+    active: false
   extract_blur_value:
-    active: true
+    active: false
   get_color_features:
-    active: true
+    active: false
   get_composition_features:
-    active: true
+    active: false
   get_figure_ground_relationship_features:
-    active: true
+    active: false
     parameters:
       canny_edge_high_threshold: 200
       canny_edge_low_threshold: 100
@@ -60,13 +65,17 @@ features:
       language: eng
       windows_path_to_tesseract: C:\\Program Files\\Tesseract-OCR\\tesseract.exe
   predict_coco_labels_yolo11:
-    active: true
+    active: false
+    parameters:
+      replicate_model_id: ultralytics/yolov11:your-coco-version-id-here
   predict_imagenet_classes_yolo11:
-    active: true
+    active: false
+    parameters:
+      replicate_model_id: ultralytics/yolov11:your-imagenet-version-id-here
   self_similarity:
-    active: true
+    active: false
   visual_complexity:
-    active: true
+    active: false
     parameters:
       threshold: 25000
 general:

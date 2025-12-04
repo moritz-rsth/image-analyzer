@@ -1,0 +1,139 @@
+# requirementsDeployment.txt
+# Optimized requirements for API-based deployment
+# Excludes heavy ML libraries (torch, transformers, ultralytics) as models run via Replicate/OpenAI APIs
+# Only includes packages needed for:
+# - Flask web server
+# - Image processing (OpenCV, PIL, scikit-image)
+# - Local CPU-based features (TensorFlow for aesthetic scores, Tesseract for OCR)
+# - API clients (Replicate, OpenAI)
+# - Data processing (pandas, numpy, scipy)
+
+# ============================================================================
+# Web Framework & Server
+# ============================================================================
+Flask==3.1.0
+Flask-SocketIO==5.4.1
+Werkzeug==3.1.3
+python-engineio==4.1.0
+python-socketio==5.3.0
+itsdangerous==2.2.0
+Jinja2==3.1.5
+MarkupSafe==3.0.2
+click==8.1.7
+blinker==1.9.0
+
+# ============================================================================
+# API Clients
+# ============================================================================
+replicate>=0.25.0
+openai==2.8.1
+requests==2.32.3
+
+# ============================================================================
+# Core Data Processing
+# ============================================================================
+numpy==2.0.1
+pandas==2.2.2
+scipy==1.13.1
+
+# ============================================================================
+# Image Processing
+# ============================================================================
+opencv-contrib-python==4.11.0.86
+Pillow==10.4.0
+scikit-image==0.24.0
+imageio==2.34.2
+tifffile==2024.7.24
+
+# ============================================================================
+# OCR (Tesseract)
+# ============================================================================
+pytesseract==0.3.13
+python-bidi==0.6.6
+langdetect==1.0.9
+
+# ============================================================================
+# TensorFlow (for aesthetic scores - lightweight, CPU-only)
+# ============================================================================
+# Note: Using CPU-only version to reduce size
+tensorflow==2.18.0
+keras==3.8.0
+keras-applications==1.0.8
+h5py==3.12.1
+
+# TensorFlow dependencies
+absl-py==2.1.0
+astunparse==1.6.3
+gast==0.6.0
+google-pasta==0.2.0
+grpcio==1.69.0
+protobuf==5.29.3
+termcolor==2.5.0
+wrapt==1.17.2
+ml-dtypes==0.4.1
+namex==0.0.8
+opt-einsum==3.4.0
+tensorflow-io-gcs-filesystem==0.37.1
+
+# ============================================================================
+# Wavelet Transform (for figure-ground features)
+# ============================================================================
+PyWavelets==1.6.0
+
+# ============================================================================
+# File Processing & Utilities
+# ============================================================================
+openpyxl==3.1.5
+fpdf==1.7.2
+PyYAML>=6.0
+python-dateutil==2.9.0.post0
+pytz==2024.1
+
+# ============================================================================
+# Progress Bars & Logging
+# ============================================================================
+tqdm==4.66.5
+
+# ============================================================================
+# Network & Security
+# ============================================================================
+certifi==2025.1.31
+urllib3==2.3.0
+idna==3.10
+charset-normalizer==3.4.1
+
+# ============================================================================
+# System & Platform
+# ============================================================================
+platformdirs==4.2.2
+packaging==24.1
+typing_extensions==4.12.2
+python-dotenv==1.0.1
+
+# ============================================================================
+# Optional: For async/parallel processing (if needed)
+# ============================================================================
+# Uncomment if you want to use async for parallel API calls:
+# aiohttp>=3.9.0
+# asyncio  # Built-in, no install needed
+
+# ============================================================================
+# Removed for Deployment (not needed with API-based approach):
+# ============================================================================
+# - torch, torchvision, torchaudio (models run on Replicate)
+# - transformers (models run on Replicate)
+# - ultralytics (YOLO runs on Replicate)
+# - mtcnn (face detection runs on Replicate)
+# - huggingface-hub (not needed)
+# - safetensors (not needed)
+# - tokenizers (not needed)
+# - peft (not needed)
+# - timm (not needed)
+# - tensorboard (not needed for production)
+# - Jupyter/IPython (not needed for production)
+# - matplotlib, seaborn (optional, only if visualization needed)
+# - keras-ocr (using pytesseract instead)
+# - efficientnet (using TensorFlow MobileNet instead)
+# - einops (not needed)
+# - imgaug (not needed)
+

@@ -1,3 +1,27 @@
+"""
+Feature extraction functions for deployment.
+
+- CPU-based functions (copied from `feature_extraction.py`): 
+  calculate_aesthetic_scores, calculate_hue_proportions, calculate_image_clarity,
+  estimate_noise, extract_basic_image_features, extract_blur_value,
+  felzenszwalb_segmentation, get_color_features, get_composition_features,
+  get_figure_ground_relationship_features, get_ocr_text,
+  self_similarity, visual_complexity
+- Replicate API-based functions:
+  describe_blip, describe_llm, detect_faces, detect_objects,
+  predict_coco_labels_yolo11, predict_imagenet_classes_yolo11
+- External API-based functions (OpenAI):
+  describe_llm_openai_api
+
+This module provides (mostly) the same interface as `feature_extraction.py` but
+uses API calls for GPU-intensive models in deployment.
+
+To use this module:
+1. Set up Replicate API key in environment variable REPLICATE_API_TOKEN
+2. Configure model IDs in configuration.yaml under each feature's parameters
+3. Replace imports from feature_extraction to feature_extraction_api in ia_pipeline.py
+"""
+
 import cv2
 import io
 import math
@@ -8,12 +32,14 @@ import platform
 import pytesseract
 import pywt
 import tensorflow as tf
-import torch
 import traceback
+import base64
+import ast
+from io import BytesIO
+from dotenv import load_dotenv
 
 from ..utils.helper_functions import download_weights
 from langdetect import detect, LangDetectException
-from mtcnn import MTCNN
 from PIL import Image
 from scipy.optimize import curve_fit
 from scipy.signal import convolve2d
@@ -22,62 +48,66 @@ from skimage.color import label2rgb
 from skimage.io import imread
 from skimage.measure import regionprops, label
 from skimage.segmentation import felzenszwalb, slic
-from torchvision import models, transforms
-from tqdm import tqdm 
-from transformers import AutoModelForCausalLM, AutoProcessor, BlipProcessor, BlipForConditionalGeneration, GenerationConfig
-from ultralytics import YOLO
+from tqdm import tqdm
 
-def new_feature_template(self, df_images):
+import replicate
+from openai import OpenAI
+
+
+# ============================================================================
+# Helper Functions for API Calls
+# ============================================================================
+
+def _get_replicate_client():
+    """Get Replicate client instance."""
+    if replicate is None:
+        raise ImportError("replicate package not installed")
+
+    load_dotenv()
+    
+    api_token = os.getenv('REPLICATE_API_TOKEN')
+    if not api_token:
+        raise ValueError("REPLICATE_API_TOKEN environment variable not set")
+    
+    return replicate.Client(api_token=api_token)
+
+
+def _prepare_image_for_api(image_path):
     """
-    <Give a short description of what this function computes and how it is structured on a high-level>
-
-    :param self: IA object
-    :param df_images: DataFrame containing a 'filePath' column with paths to image files
-    :return: DataFrame with added feature columns:
-        - new_feature: Description of your new feature
+    Prepare image file for API upload.
+    Returns file-like object ready for API calls.
     """
+    if not os.path.exists(image_path):
+        raise FileNotFoundError(f"Image not found: {image_path}")
+    
+    return open(image_path, "rb")
 
-    # Create a copy of the input DataFrame to store results
-    df = df_images.copy()
 
-    # Iterate over all images using enumerate on the DataFrame column
-    for idx, image_path in enumerate(tqdm(df_images['filePath'])):
-        try:
-            # Check if file exists
-            if not os.path.exists(image_path):
-                if self.verbose: print(f"Warning: File not found: {image_path}")
-                continue
+def _call_replicate_model(model_id, input_data, timeout=300):
+    """
+    Generic function to call Replicate models.
+    
+    :param model_id: Replicate model identifier (e.g., "salesforce/blip:...")
+    :param input_data: Dictionary with input parameters
+    :param timeout: Timeout in seconds
+    :return: Model output
+    """
+    try:
+        client = _get_replicate_client()
+        output = client.run(model_id, input=input_data, timeout=timeout)
+        return output
+    except Exception as e:
+        raise Exception(f"Replicate API error for {model_id}: {str(e)}")
 
-            # Load the image using cv2
-            image = cv2.imread(image_path)
-            if image is None:
-                if self.verbose: print(f"Warning: Failed to load image: {image_path}")
-                continue
 
-            # Do your magic here - THANK YOU SO MUCH!!!
-            new_feature = True
-
-            # Save your feature to the dataframe
-            df.loc[idx, 'new_feature'] = new_feature
-
-        except Exception as e:
-            error = f"Error processing {image_path}: {str(e)}"
-            print(error)
-            df.loc[idx, 'error_new_feature'] = error
-            continue
-
-    return df
+# ============================================================================
+# Feature Extraction Functions (CPU-based, copied from feature_extraction.py)
+# ============================================================================
 
 def calculate_aesthetic_scores(self, df_images):
     """
     Calculates the aesthetic scores for a list of images using a MobileNet-based NIMA model.
-    
-    For each image, the following steps are performed:
-      - Load and resize the image to 224x224.
-      - Convert the image from BGR to RGB and normalize pixel values to the range [0, 1].
-      - The pre-trained MobileNet-based NIMA model predicts a probability distribution over 10 score bins.
-      - The aesthetic score is computed as the weighted sum: sum_{i=1}^{10} (i * p_i),
-        where p_i is the predicted probability for score bin i.
+    This function runs locally on CPU (lightweight model).
     
     :param self: IA object
     :param df_images: DataFrame with a column 'filePath' containing paths to image files.
@@ -153,12 +183,14 @@ def calculate_aesthetic_scores(self, df_images):
                 print(error)
                 df.loc[idx, 'error_nima'] = error
                 continue
+        
 
         return df
 
     except Exception as e:
         print(f"Error in NIMA setup: {str(e)}")
         return df
+
 
 def calculate_hue_proportions(self, df_images):
     """
@@ -228,6 +260,7 @@ def calculate_hue_proportions(self, df_images):
 
     return df
 
+
 def calculate_image_clarity(self, df_images):
     """
     Calculate the clarity score for each image by measuring the proportion of high-brightness pixels.
@@ -279,39 +312,43 @@ def calculate_image_clarity(self, df_images):
 
     return df
 
+# ============================================================================
+# Feature Extraction Functions (Replicate API-based)
+# ============================================================================
+
 def describe_blip(self, df_images): 
     """
-    This function generates a textual description of an image using the BLIP model.
+    This function generates a textual description of an image using the BLIP model via Replicate API.
 
     :param self: IA object
     :param df_images: DataFrame containing a 'filePath' column with paths to image files
     :return: DataFrame with added feature columns
     """
-    # Clear GPU cache if available
-    if self.cuda_availability:
-        torch.cuda.empty_cache()
-
     # Create a copy of the input DataFrame to store results
     df = df_images.copy()
 
     try:
-        # Get parameters
-        processor_path = self.config.get('describe_blip', {}).get('processor', 'Salesforce/blip-image-captioning-base')
-        model_path = self.config.get('describe_blip', {}).get('model', 'Salesforce/blip-image-captioning-base')
+        # Get parameters from config
+        config_params = config_params = (
+            self.config
+            .get('features', {})
+            .get('describe_blip', {})
+            .get('parameters', {})
+        )
+        
+        model_id = config_params.get('replicate_model_id', None)
 
-        # Load processor and model
-        try:
-            processor = BlipProcessor.from_pretrained(processor_path)
-            model = BlipForConditionalGeneration.from_pretrained(model_path).to(self.device)
-        except Exception as e:
-            print(f"Error loading BLIP model: {str(e)}")
+        if not model_id:
+            error_msg = "Replicate model ID not configured. Please set 'replicate_model_id' in config."
+            print(f"Error: {error_msg}")
+            df['error_blip'] = error_msg
             return df
 
         # Initialize new columns with empty string
         df['descrBlip'] = ""
 
         # Iterate over all image paths
-        for idx, image_path in enumerate(tqdm(df_images['filePath'])):
+        for idx, image_path in enumerate(tqdm(df_images['filePath'], desc="BLIP captioning via Replicate")):
             try:
                 # Check if file exists
                 if not os.path.exists(image_path):
@@ -319,25 +356,39 @@ def describe_blip(self, df_images):
                     df.loc[idx, 'error_blip'] = "File not found"
                     continue
 
-                # Load and process image
+                # Prepare image for API
                 try:
-                    image = Image.open(image_path).convert('RGB')
+                    image_file = _prepare_image_for_api(image_path)
                 except Exception as e:
                     if self.verbose: print(f"Warning: Failed to load image: {image_path}")
                     df.loc[idx, 'error_blip'] = f"Image load error: {str(e)}"
                     continue
 
-                # Generate description
+                input={
+                    "task": "image_captioning",
+                    "image": image_file
+                }
+
+                # Call Replicate API
                 try:
-                    inputs = processor(image, return_tensors="pt").to(self.device)
-                    with torch.no_grad():
-                        outputs = model.generate(**inputs)
-                    caption = processor.decode(outputs[0], skip_special_tokens=True)
+                    output = _call_replicate_model(
+                        model_id=model_id,
+                        input_data=input
+                    )
+                    
+                    # Replicate BLIP typically returns a string directly
+                    caption = output if isinstance(output, str) else str(output)
+                    caption = caption.removeprefix("Caption: ")
                     df.loc[idx, 'descrBlip'] = caption
+                    
+                    image_file.close()
+                    
                 except Exception as e:
-                    error = f"Description generation error: {str(e)}"
+                    error = f"Replicate API error: {str(e)}"
                     print(f"Error generating description for {image_path}: {error}")
                     df.loc[idx, 'error_blip'] = error
+                    if 'image_file' in locals():
+                        image_file.close()
                     continue
 
             except Exception as e:
@@ -350,49 +401,45 @@ def describe_blip(self, df_images):
 
     except Exception as e:
         print(f"Error in BLIP setup: {str(e)}")
+        df['error_blip'] = f"Setup error: {str(e)}"
         return df
+
 
 def describe_llm(self, df_images, prompt="Describe the image."): 
     """
-    This function generates a textual description of an image using a large language model (Phi-4-multimodal-instruct).
-    The prompt to generate the description can be customized.
-    Note: Requires large GPU VRAM (> 16GB).
+    This function generates a textual description of an image using a large language model via Replicate API.
 
     :param self: IA object
     :param df_images: DataFrame containing a 'filePath' column with paths to image files
+    :param prompt: The prompt to use for generating the description
     :return: DataFrame with added feature columns
     """
     # Create a copy of the input DataFrame to store results
     df = df_images.copy()
 
     try:
-        # Define model path and prompts
-        model_path = "microsoft/Phi-4-multimodal-instruct"
-        user_prompt = '<|user|>'
-        assistant_prompt = '<|assistant|>'
-        prompt_suffix = '<|end|>' 
-        combined_prompt = f'{user_prompt}<|image_1|>{prompt}{prompt_suffix}{assistant_prompt}'
+        # Get parameters from config
+        config_params = config_params = (
+            self.config
+            .get('features', {})
+            .get('describe_llm', {})
+            .get('parameters', {})
+        )
 
-        # Load model and processor
-        try:
-            processor = AutoProcessor.from_pretrained(model_path, trust_remote_code=True)
-            model = AutoModelForCausalLM.from_pretrained(
-                model_path, 
-                device_map="cuda", 
-                torch_dtype="auto", 
-                trust_remote_code=True,
-                _attn_implementation='eager'
-            ).cuda()
-            generation_config = GenerationConfig.from_pretrained(model_path)
-        except Exception as e:
-            print(f"Error loading LLM model: {str(e)}")
+        model_id = config_params.get('replicate_model_id', None)
+        max_new_tokens = config_params.get('max_new_tokens', 1000)
+        
+        if not model_id:
+            error_msg = "Replicate model ID not configured. Please set 'replicate_model_id' in config."
+            print(f"Error: {error_msg}")
+            df['error_llm'] = error_msg
             return df
 
         # Initialize new columns with empty string
         df['descrLLM'] = ""
 
         # Iterate over all image paths
-        for idx, image_path in enumerate(tqdm(df_images['filePath'])):
+        for idx, image_path in enumerate(tqdm(df_images['filePath'], desc="LLM description via Replicate")):
             try:
                 # Check if file exists
                 if not os.path.exists(image_path):
@@ -400,32 +447,36 @@ def describe_llm(self, df_images, prompt="Describe the image."):
                     df.loc[idx, 'error_llm'] = "File not found"
                     continue
 
-                # Load and process image
+                # Prepare image for API
                 try:
-                    image = Image.open(image_path)
+                    image_file = _prepare_image_for_api(image_path)
                 except Exception as e:
                     if self.verbose: print(f"Warning: Failed to load image: {image_path}")
                     df.loc[idx, 'error_llm'] = f"Image load error: {str(e)}"
                     continue
 
-                # Generate description
+                # Call Replicate API
                 try:
-                    inputs = processor(text=combined_prompt, images=image, return_tensors='pt').to('cuda:0')
-                    generate_ids = model.generate(
-                        **inputs,
-                        max_new_tokens=1000,
-                        generation_config=generation_config,
-                        num_logits_to_keep=1
+                    output = _call_replicate_model(
+                        model_id=model_id,
+                        input_data={
+                            "text": prompt,
+                            "images": [image_file],
+                            "max_tokens": max_new_tokens
+                        }
                     )
-                    generate_ids = generate_ids[:, inputs['input_ids'].shape[1]:]
-                    response = processor.batch_decode(
-                        generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False
-                    )[0]
-                    df.loc[idx, 'descrLLM'] = response
+                    
+                    description = output if isinstance(output, str) else str(output)
+                    df.loc[idx, 'descrLLM'] = description
+                    
+                    image_file.close()
+                    
                 except Exception as e:
-                    error = f"Description generation error: {str(e)}"
+                    error = f"Replicate API error: {str(e)}"
                     print(f"Error generating description for {image_path}: {error}")
                     df.loc[idx, 'error_llm'] = error
+                    if 'image_file' in locals():
+                        image_file.close()
                     continue
 
             except Exception as e:
@@ -438,7 +489,9 @@ def describe_llm(self, df_images, prompt="Describe the image."):
 
     except Exception as e:
         print(f"Error in LLM setup: {str(e)}")
+        df['error_llm'] = f"Setup error: {str(e)}"
         return df
+
 
 def describe_llm_openai_api(self, df_images):
     """
@@ -462,7 +515,13 @@ def describe_llm_openai_api(self, df_images):
 
     try:
         # Get parameters from config
-        config_params = self.config.get('describe_llm_api', {}).get('parameters', {})
+        config_params = config_params = (
+            self.config
+            .get('features', {})
+            .get('describe_llm_openai_api', {})
+            .get('parameters', {})
+        )
+
         model = config_params.get('model', 'gpt-4o')
         api_key = config_params.get('api_key', 'your_api_key')
         max_tokens = config_params.get('max_tokens', 1000)
@@ -478,9 +537,6 @@ def describe_llm_openai_api(self, df_images):
         # Initialize OpenAI client and test connection
         try:
             client = OpenAI(api_key=api_key)
-            # Test connection with a simple API call
-            # We'll do a minimal test by checking if we can create a client
-            # The actual connection test happens on first API call
         except Exception as e:
             error_msg = f"Failed to initialize OpenAI client: {str(e)}"
             print(f"Error: {error_msg}")
@@ -548,58 +604,64 @@ def describe_llm_openai_api(self, df_images):
         df['error_llm_api'] = f"Setup error: {str(e)}"
         return df
 
+
 def detect_faces(self, df_images):
-    '''
-    This function:
-    0. Takes in a DataFrame with a column 'filePath'
-    1. For each image in the DataFrame, detect faces
-    2. Returns a DataFrame with the faces detected
-    ''' 
+    """
+    This function detects faces in images using MTCNN via Replicate API.
+    Returns face counts, scores, and areas.
 
-    def get_faces(self, path_img):
+    :param self: IA object
+    :param df_images: DataFrame with a column 'filePath'
+    :return: DataFrame with face detection results
+    """
+
+    def get_faces_from_replicate(self, path_img):
         '''
-        This function:
-        0. Takes in a path to an img
-        1. extracts all faces (bb, landmarks) as a dict and returns it
+        Detect faces using Replicate API and return formatted results.
         '''
-        # Initialize detector
-        if self.cuda_availability:
-            detector = MTCNN(device="GPU:0")
-        else:
-            detector = MTCNN(device="CPU:0")
-
-        # read image
-        img = cv2.cvtColor(cv2.imread(path_img), cv2.COLOR_BGR2RGB)
-        
-        # predict faces
-        faces = detector.detect_faces(img, box_format="xywh", threshold_onet=0.85)
-
-        # reformat datastructure
-        faces_dict = {}
-        if bool(faces):
-            # iterate over list of dicts
-            counter = 1
-            for entry in faces:
-                faces_dict["face_" + str(counter)] = {
-                    "score": entry["confidence"],
-                    "facial_area": entry["box"],
-                    "landmarks": {
-                        "right_eye": entry["keypoints"]["right_eye"],
-                        "left_eye": entry["keypoints"]["left_eye"],
-                        "nose": entry["keypoints"]["nose"],
-                        "mouth_right": entry["keypoints"]["mouth_right"],
-                        "mouth_left": entry["keypoints"]["mouth_left"]
-                    }
+        try:
+            config_params = self.config.get('detect_faces', {}).get('parameters', {})
+            model_id = config_params.get('replicate_model_id', 'lucataco/mtcnn:...')  # TODO: Replace with actual model ID
+            confidence_threshold = config_params.get('confidence_threshold', 0.9)
+            
+            if not model_id or '...' in model_id:
+                raise ValueError("Replicate model ID not configured")
+            
+            image_file = _prepare_image_for_api(path_img)
+            
+            # Call Replicate API
+            output = _call_replicate_model(
+                model_id=model_id,
+                input_data={
+                    "image": image_file,
+                    "threshold": confidence_threshold
                 }
-                counter += 1
-        return faces_dict
-
-
-
-
-    # Clear GPU cache if available
-    if self.cuda_availability:
-        torch.cuda.empty_cache()
+            )
+            
+            image_file.close()
+            
+            # Format output to match expected structure
+            # Replicate MTCNN typically returns list of detections with boxes, confidence, landmarks
+            faces_dict = {}
+            if output and isinstance(output, list):
+                for i, detection in enumerate(output):
+                    faces_dict[f"face_{i+1}"] = {
+                        "score": detection.get('confidence', detection.get('score', 0.0)),
+                        "facial_area": detection.get('box', detection.get('bbox', [0, 0, 0, 0])),
+                        "landmarks": {
+                            "right_eye": detection.get('landmarks', {}).get('right_eye', [0, 0]),
+                            "left_eye": detection.get('landmarks', {}).get('left_eye', [0, 0]),
+                            "nose": detection.get('landmarks', {}).get('nose', [0, 0]),
+                            "mouth_right": detection.get('landmarks', {}).get('mouth_right', [0, 0]),
+                            "mouth_left": detection.get('landmarks', {}).get('mouth_left', [0, 0]),
+                        }
+                    }
+            
+            return faces_dict
+            
+        except Exception as e:
+            print(f"Error detecting faces via Replicate: {str(e)}")
+            return {}
 
     # Get confidence threshold from config
     confidence_threshold = self.config.get('features', {}).get('detect_faces', {}).get('parameters', {}).get('confidence_threshold', 0.9)
@@ -614,7 +676,7 @@ def detect_faces(self, df_images):
     face_areas_abs = []
     face_areas_rel = []
     
-    for idx, img_path in enumerate(tqdm(df_images['filePath'])):
+    for idx, img_path in enumerate(tqdm(df_images['filePath'], desc="Face detection via Replicate")):
         try:
             img = cv2.imread(img_path)
             if img is None:
@@ -628,8 +690,8 @@ def detect_faces(self, df_images):
             face_areas_rel.append(None)
             continue
             
-        # Detect faces
-        faces = get_faces(self, img_path)
+        # Detect faces via Replicate
+        faces = get_faces_from_replicate(self, img_path)
         
         if faces:
             # Count faces
@@ -649,20 +711,20 @@ def detect_faces(self, df_images):
         else:
             face_counts.append(0)
             face_scores.append(None)
-            face_areas_abs.append(0)
-            face_areas_rel.append(0)
+            face_areas_abs.append(None)
+            face_areas_rel.append(None)
     
-    # Add results to DataFrame
-    df_results['face_count'] = face_counts
-    df_results['face_confidence_avg'] = face_scores
-    df_results['face_area_total_abs'] = face_areas_abs    
-    df_results['face_area_total_rel'] = [min(1, area) if area is not None else None for area in face_areas_rel]
+    df_results['faceCount'] = face_counts
+    df_results['faceScore'] = face_scores
+    df_results['faceAreaAbs'] = face_areas_abs
+    df_results['faceAreaRel'] = face_areas_rel
     
     return df_results
 
+
 def detect_objects(self, df_images):
     """
-    Detect objects in images using a pre-trained model.
+    Detect objects in images using Florence-2 or similar model via Replicate API.
 
     :param self: IA object
     :param df_images: DataFrame containing a 'filePath' column with paths to image files
@@ -673,15 +735,27 @@ def detect_objects(self, df_images):
 
     try:
         # Get parameters
-        objects_to_detect = self.config.get("features", {}).get("detect_objects", {}).get("parameters", {}).get("objects_to_detect", [])
+        objects_to_detect = (
+            self.config
+            .get("features", {})
+            .get("detect_objects", {})
+            .get("parameters", {})
+            .get("objects_to_detect", [])
+        )
+        config_params = (
+            self.config
+            .get("features", {})
+            .get("detect_objects", {})
+            .get("parameters", {})
+        )
+        model_id = config_params.get('replicate_model_id', None)
+        
         print(f"Objects to detect: {objects_to_detect}")
 
-        # Initialize model
-        try:
-            model = AutoModelForCausalLM.from_pretrained("microsoft/Florence-2-base", trust_remote_code=True).to(self.device)
-            processor = AutoProcessor.from_pretrained("microsoft/Florence-2-base", trust_remote_code=True)
-        except Exception as e:
-            print(f"Error loading model: {str(e)}")
+        if not model_id:
+            error_msg = "Replicate model ID not configured. Please set 'replicate_model_id' in config."
+            print(f"Error: {error_msg}")
+            df['error_object_detection'] = error_msg
             return df
 
         # Initialize columns
@@ -690,47 +764,57 @@ def detect_objects(self, df_images):
             df[column_name] = False
 
         # Process images
-        for idx, image_path in enumerate(tqdm(df_images['filePath'])):
+        for idx, image_path in enumerate(tqdm(df_images['filePath'], desc="Object detection via Replicate")):
             try:
                 # Check if file exists
                 if not os.path.exists(image_path):
                     if self.verbose: print(f"Warning: File not found: {image_path}")
                     continue
 
-                # Load and process image
+                # Prepare image for API
                 try:
-                    image = Image.open(image_path).convert("RGB")
+                    image_file = _prepare_image_for_api(image_path)
                 except Exception as e:
                     if self.verbose: print(f"Warning: Failed to load image: {image_path}")
                     continue
 
-                # Prepare inputs
-                prompt = "<OD>"
-                inputs = processor(text=prompt, images=image, return_tensors="pt").to(self.device)
+                input = {
+                            "image": image_file,
+                            "task_input": "Object Detection",
+                    }
 
-                # Generate predictions
-                generated_ids = model.generate(
-                    input_ids=inputs["input_ids"] if "input_ids" in inputs else None,
-                    pixel_values=inputs["pixel_values"],
-                    max_new_tokens=4096,
-                    num_beams=3,
-                    do_sample=False
-                )
+                # Call Replicate API
+                try:
+                    # Florence-2 OD convention: prompt "<OD>" → result under key "<OD>"
+                    output = _call_replicate_model(
+                        model_id=model_id,
+                        input_data=input
+                    )
+                    
+                    image_file.close()
+                    
+                    
 
-                # Process results
-                generated_text = processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
-                parsed_answer = processor.post_process_generation(
-                    generated_text,
-                    task="<OD>",
-                    image_size=(image.width, image.height)
-                )
+                    # Output-Format is always:
+                    # {"img": <FileOutput>, "text": "{'<OD>': {'bboxes': [...], 'labels': [...]}}"}
+                    text_field = output["text"]
+                    od_dict = ast.literal_eval(text_field)
+                    od_result = od_dict["<OD>"]
+                    detected_objects = od_result["labels"]
+                    
+                    detected_objects_lower = [label.lower() for label in detected_objects]
+                    
+                    for obj in objects_to_detect:
+                        column_name = f"contains_{obj.lower()}"
+                        df.loc[idx, column_name] = obj.lower() in detected_objects_lower
 
-                detected_objects = parsed_answer.get('<OD>', {}).get('labels', [])
-                detected_objects_lower = [obj.lower() for obj in detected_objects]
-
-                for obj in objects_to_detect:
-                    column_name = f"contains_{obj.lower()}"
-                    df.loc[idx, column_name] = obj.lower() in detected_objects_lower
+                except Exception as e:
+                    error = f"Replicate API error: {str(e)}"
+                    print(f"Error detecting objects for {image_path}: {error}")
+                    df.loc[idx, 'error_object_detection'] = error
+                    if 'image_file' in locals():
+                        image_file.close()
+                    continue
 
             except Exception as e:
                 error = f"Error processing {image_path}: {str(e)}"
@@ -742,7 +826,12 @@ def detect_objects(self, df_images):
 
     except Exception as e:
         print(f"Error in object detection setup: {str(e)}")
+        df['error_object_detection'] = f"Setup error: {str(e)}"
         return df
+
+# ============================================================================
+# Feature Extraction Functions (CPU-based, copied from feature_extraction.py)
+# ============================================================================
 
 def estimate_noise(self, df_images):
     """
@@ -795,6 +884,7 @@ def estimate_noise(self, df_images):
 
     return df
 
+
 def extract_basic_image_features(self, df_images):
     """
     Extract basic features from the images and add them as columns to the DataFrame.
@@ -841,18 +931,6 @@ def extract_basic_image_features(self, df_images):
             df.loc[idx, 'fileSize'] = os.path.getsize(image_path) / 1024
             df.loc[idx, 'fileCreationTime'] = os.path.getctime(image_path)
 
-            # # Image meta data
-            # df.loc[idx, 'lens'] = image.get('Lens', 'NA')
-            # df.loc[idx, 'focalLength'] = image.get('FocalLength', 'NA')
-            # df.loc[idx, 'aperture'] = image.get('Aperture', 'NA')
-            # df.loc[idx, 'exposureTime'] = image.get('ExposureTime', 'NA')
-            # df.loc[idx, 'ISO'] = image.get('ISO', 'NA')
-            # df.loc[idx, 'shutterSpeed'] = image.get('ShutterSpeedValue', 'NA')
-            # df.loc[idx, 'whiteBalance'] = image.get('WhiteBalance', 'NA')
-            # df.loc[idx, 'flash'] = image.get('Flash', 'NA')
-            # df.loc[idx, 'meteringMode'] = image.get('MeteringMode', 'NA')
-            # df.loc[idx, 'exposureProgram'] = image.get('ExposureProgram', 'NA')
-
             # Image dimensions
             df.loc[idx, 'height'] = image.shape[0]
             df.loc[idx, 'width'] = image.shape[1]
@@ -869,16 +947,12 @@ def extract_basic_image_features(self, df_images):
             # HSV channels
             df.loc[idx, 'hueMean'] = np.mean(image_hsv[:, :, 0])
             df.loc[idx, 'hueStd'] = np.std(image_hsv[:, :, 0])
-            # df.loc[idx, 'saturationMean'] = np.mean(image_hsv[:, :, 1])
-            # df.loc[idx, 'saturationStd'] = np.std(image_hsv[:, :, 1])
-            # df.loc[idx, 'brightnessMean'] = np.mean(image_hsv[:, :, 2])
-            # df.loc[idx, 'brightnessStd'] = np.std(image_hsv[:, :, 2])
 
-            # # Grayscale
+            # Grayscale
             df.loc[idx, 'greyscaleMean'] = np.mean(image_gray)
             df.loc[idx, 'greyscaleStd'] = np.std(image_gray)
 
-            # # Shannon entropy
+            # Shannon entropy
             df.loc[idx, 'shannonEntropy'] = measure.shannon_entropy(image_gray)
 
         except Exception as e:
@@ -888,6 +962,7 @@ def extract_basic_image_features(self, df_images):
             continue
 
     return df
+
 
 def extract_blur_value(self, df_images):
     """
@@ -927,6 +1002,7 @@ def extract_blur_value(self, df_images):
             continue
 
     return df
+
 
 def felzenszwalb_segmentation(self, df_images): 
     """
@@ -995,6 +1071,7 @@ def felzenszwalb_segmentation(self, df_images):
         print(f"Error in segmentation setup: {str(e)}")
         return df
 
+
 def get_color_features(self, df_images):
     """
     Computes color-related features for images, including:
@@ -1046,39 +1123,34 @@ def get_color_features(self, df_images):
             B = image[:, :, 0].astype("float")
             G = image[:, :, 1].astype("float")
             R = image[:, :, 2].astype("float")
-            rg = R - G
-            yb = 0.5 * (R + G) - B
-            std_rg = np.std(rg)
-            std_yb = np.std(yb)
-            mean_rg = np.mean(rg)
-            mean_yb = np.mean(yb)
-            colorfulness_raw = np.sqrt(std_rg ** 2 + std_yb ** 2) + 0.3 * np.sqrt(mean_rg ** 2 + mean_yb ** 2)
 
-            # Store computed features
+            rg = np.absolute(R - G)
+            yb = np.absolute(0.5 * (R + G) - B)
+
+            rg_mean = np.mean(rg)
+            rg_std = np.std(rg)
+            yb_mean = np.mean(yb)
+            yb_std = np.std(yb)
+
+            std_root = np.sqrt((rg_std ** 2) + (yb_std ** 2))
+            mean_root = np.sqrt((rg_mean ** 2) + (yb_mean ** 2))
+
+            colorfulness = std_root + (0.3 * mean_root)
+            colorfulness = np.clip(colorfulness / 100.0, 0, 1)  # Normalize to [0,1]
+
             df.loc[idx, 'brightnessMean'] = brightness_val
             df.loc[idx, 'saturationMean'] = saturation_val
             df.loc[idx, 'contrast'] = contrast_val
-            df.loc[idx, 'colorfulness'] = colorfulness_raw
+            df.loc[idx, 'colorfulness'] = colorfulness
 
         except Exception as e:
             error = f"Error processing {image_path}: {str(e)}"
             print(error)
-            df.loc[idx, 'error_color_features'] = error
+            df.loc[idx, 'error_color'] = error
             continue
 
-    try:
-        # Normalize colorfulness across all images to [0,1]
-        raw_colorfulness = df['colorfulness'].astype('float').values
-        min_c = np.nanmin(raw_colorfulness)
-        max_c = np.nanmax(raw_colorfulness)
-        if max_c - min_c == 0:
-            df['colorfulness'] = 0.0
-        else:
-            df['colorfulness'] = (raw_colorfulness - min_c) / (max_c - min_c)
-    except Exception as e:
-        print(f"Error normalizing colorfulness: {str(e)}")
-
     return df
+
 
 def get_composition_features(self, df_images):
     """
@@ -1152,10 +1224,13 @@ def get_composition_features(self, df_images):
                 # 1. Apply superpixel segmentation (e.g., using SLIC or similar)
                 segments = slic(image, n_segments=10, compactness=10)
 
-                # 2. Calculate average saliency for each segment, excluding segments with no pixels (i.e., skip)
+                # 2. Calculate average saliency for each segment, excluding segments with no pixels (i.e., skip).
+                # Use a Python set instead of np.unique(...) to avoid NumPy's SIMD-based sort path,
+                # which can segfault on some macOS/ARM + NumPy combinations.
                 segment_saliencies = []
                 segment_ids = []  # Store the actual segment IDs
-                for segment_id in np.unique(segments):
+                unique_ids = set(int(x) for x in segments.ravel())
+                for segment_id in unique_ids:
                     segment_mask = (segments == segment_id)
                     if np.count_nonzero(segment_mask) == 0:
                         avg_saliency = np.nan
@@ -1256,6 +1331,7 @@ def get_composition_features(self, df_images):
     except Exception as e:
         print(f"Error in composition feature extraction setup: {str(e)}")
         return df
+
 
 def get_figure_ground_relationship_features(self, df_images):
     """
@@ -1430,6 +1506,7 @@ def get_figure_ground_relationship_features(self, df_images):
 
     return df
 
+
 def get_ocr_text(self, df_images):
     """
     Extract text from images using pytesseract and identify the language.
@@ -1490,33 +1567,19 @@ def get_ocr_text(self, df_images):
                     if has_text:
                         try:
                             language = detect(text)
+                            df.loc[idx, 'ocrLanguage'] = language
                         except LangDetectException:
-                            language = "unknown"
-                        except Exception as e:
-                            language = "error"
-                            df.loc[idx, 'error_ocr_lang'] = f"Language detection error: {str(e)}"
-                    else:
-                        language = ""
-
-                    # Store language result
-                    df.loc[idx, 'ocrLanguage'] = language
-
+                            df.loc[idx, 'ocrLanguage'] = "unknown"
                 except Exception as e:
-                    error = f"OCR processing error: {str(e)}"
-                    print(f"Error processing OCR for {image_path}: {error}")
+                    error = f"OCR error: {str(e)}"
+                    print(f"Error performing OCR for {image_path}: {error}")
                     df.loc[idx, 'error_ocr'] = error
-                    df.loc[idx, 'ocrHasText'] = False
-                    df.loc[idx, 'ocrText'] = ""
-                    df.loc[idx, 'ocrLanguage'] = ""
                     continue
 
             except Exception as e:
                 error = f"Error processing {image_path}: {str(e)}"
                 print(error)
                 df.loc[idx, 'error_ocr'] = error
-                df.loc[idx, 'ocrHasText'] = False
-                df.loc[idx, 'ocrText'] = ""
-                df.loc[idx, 'ocrLanguage'] = ""
                 continue
 
         return df
@@ -1525,9 +1588,117 @@ def get_ocr_text(self, df_images):
         print(f"Error in OCR setup: {str(e)}")
         return df
 
+
+def predict_coco_labels_yolo11(self, df_images):
+    """
+    Predicts COCO labels in a list of images using YOLO11 via Replicate API.
+
+    :param self: IA object
+    :param df_images: DataFrame containing image filePaths.
+    :return: A DataFrame containing COCO labels and their prediction probabilities for each image.
+    """
+    # Create a copy of the input DataFrame to store results
+    df = df_images.copy()
+
+    try:
+        # Get parameters from config
+        config_params = self.config.get('predict_coco_labels_yolo11', {}).get('parameters', {})
+        model_id = config_params.get('replicate_model_id', 'ultralytics/yolov11:...')  # TODO: Replace with actual model ID
+        
+        if not model_id or '...' in model_id:
+            error_msg = "Replicate model ID not configured. Please set 'replicate_model_id' in config."
+            print(f"Error: {error_msg}")
+            df['error_yolo11_coco'] = error_msg
+            return df
+
+        # Load COCO labels (still needed for column names)
+        try:
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            coco_names_path = os.path.join(base_dir, 'weights', 'coco.names')
+            
+            # Download if not exists
+            if not os.path.exists(coco_names_path):
+                download_weights(
+                    weight_filename='coco.names', 
+                    weight_url='https://opencv-tutorial.readthedocs.io/en/latest/_downloads/a9fb13cbea0745f3d11da9017d1b8467/coco.names'
+                )
+            
+            with open(coco_names_path, 'r') as f:
+                classes = ['coco_' + line.strip() for line in f.readlines()]
+        except Exception as e:
+            print(f"Error loading COCO labels: {str(e)}")
+            return df
+
+        # Initialize columns for each class
+        for label in classes:
+            df[label] = 0.0
+
+        # Iterate over all images
+        for idx, image_path in enumerate(tqdm(df_images['filePath'], desc="COCO detection via Replicate")):
+            try:
+                # Check if file exists
+                if not os.path.exists(image_path):
+                    if self.verbose: print(f"Warning: File not found: {image_path}")
+                    continue
+
+                # Prepare image for API
+                try:
+                    image_file = _prepare_image_for_api(image_path)
+                except Exception as e:
+                    if self.verbose: print(f"Warning: Failed to load image: {image_path}")
+                    continue
+
+                # Call Replicate API
+                try:
+                    output = _call_replicate_model(
+                        model_id=model_id,
+                        input_data={"image": image_file}
+                    )
+                    
+                    image_file.close()
+                    
+                    # Parse Replicate output - typically returns list of detections
+                    # Format: [{"class": "person", "confidence": 0.95, "bbox": [x, y, w, h]}, ...]
+                    if isinstance(output, list):
+                        for detection in output:
+                            class_name = detection.get('class', detection.get('label', ''))
+                            confidence = float(detection.get('confidence', detection.get('score', 0.0)))
+                            
+                            # Find matching COCO class
+                            class_idx = None
+                            for i, coco_class in enumerate(classes):
+                                if coco_class.replace('coco_', '').lower() == class_name.lower():
+                                    class_idx = i
+                                    break
+                            
+                            if class_idx is not None and confidence > df.at[idx, classes[class_idx]]:
+                                df.at[idx, classes[class_idx]] = confidence
+
+                except Exception as e:
+                    error = f"Replicate API error: {str(e)}"
+                    print(f"Error detecting COCO labels for {image_path}: {error}")
+                    df.loc[idx, 'error_yolo11_coco'] = error
+                    if 'image_file' in locals():
+                        image_file.close()
+                    continue
+
+            except Exception as e:
+                error = f"Error processing {image_path}: {str(e)}"
+                print(error)
+                df.loc[idx, 'error_yolo11_coco'] = error
+                continue
+
+        return df
+
+    except Exception as e:
+        print(f"Error in YOLO11 COCO detection setup: {str(e)}")
+        df['error_yolo11_coco'] = f"Setup error: {str(e)}"
+        return df
+
+
 def predict_imagenet_classes_yolo11(self, df_images):
     """
-    Predicts ImageNet classes in a list of images using YOLO11 classification model.
+    Predicts ImageNet classes in a list of images using YOLO11 classification model via Replicate API.
 
     :param self: IA object
     :param df_images: DataFrame containing image filePaths.
@@ -1540,46 +1711,69 @@ def predict_imagenet_classes_yolo11(self, df_images):
     all_probs = {}
     
     try:
-        # Check if weights are downloaded already, otherwise download them
-        download_weights(
-            weight_filename='yolo11n-cls.pt', 
-            weight_url='https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n-cls.pt'
-        )
-
-        # Load the YOLO11 classification model
-        model = YOLO('../image_analyzer/weights/yolo11n-cls.pt').to(self.device)
+        # Get parameters from config
+        config_params = self.config.get('predict_imagenet_classes_yolo11', {}).get('parameters', {})
+        model_id = config_params.get('replicate_model_id', 'ultralytics/yolov11:...')  # TODO: Replace with actual model ID
         
-        # Initialize progress bar
-        for idx, image_path in enumerate(tqdm(df_images['filePath'])):
+        if not model_id or '...' in model_id:
+            error_msg = "Replicate model ID not configured. Please set 'replicate_model_id' in config."
+            print(f"Error: {error_msg}")
+            df['error_yolo11_imagenet'] = error_msg
+            return df
+        
+        # Iterate over all images
+        for idx, image_path in enumerate(tqdm(df_images['filePath'], desc="ImageNet classification via Replicate")):
             try:
                 # Check if file exists
                 if not os.path.exists(image_path):
                     if self.verbose: print(f"Warning: File not found: {image_path}")
                     continue
 
-                # Load image
-                img =   cv2.imread(image_path)
-                if img is None:
+                # Prepare image for API
+                try:
+                    image_file = _prepare_image_for_api(image_path)
+                except Exception as e:
                     if self.verbose: print(f"Warning: Failed to load image: {image_path}")
                     continue
 
-                # Perform inference with the classification model
-                results = model(img, verbose=False)
-                
-                # Process classification results
-                for result in results:
-                    # Get the probs attribute which contains probabilities for all classes
-                    probs = result.probs
+                # Call Replicate API
+                try:
+                    output = _call_replicate_model(
+                        model_id=model_id,
+                        input_data={
+                            "image": image_file,
+                            "task": "classify"  # Specify classification task
+                        }
+                    )
                     
-                    # Add all class probabilities to our temporary dictionary
-                    for i, prob in enumerate(probs.data.tolist()):
-                        class_name = result.names[i]
-                        column_name = f"imagenet_{class_name}"
-                        
-                        if column_name not in all_probs:
-                            all_probs[column_name] = [0.0] * len(df_images)
-                        
-                        all_probs[column_name][idx] = prob
+                    image_file.close()
+                    
+                    # Parse Replicate output - typically returns probabilities for all classes
+                    # Format depends on model, but usually dict with class names and probabilities
+                    if isinstance(output, dict):
+                        # If output is dict with class probabilities
+                        for class_name, prob in output.items():
+                            column_name = f"imagenet_{class_name}"
+                            if column_name not in all_probs:
+                                all_probs[column_name] = [0.0] * len(df_images)
+                            all_probs[column_name][idx] = float(prob)
+                    elif isinstance(output, list):
+                        # If output is list of {class: name, probability: prob}
+                        for item in output:
+                            class_name = item.get('class', item.get('label', ''))
+                            prob = float(item.get('probability', item.get('prob', item.get('confidence', 0.0))))
+                            column_name = f"imagenet_{class_name}"
+                            if column_name not in all_probs:
+                                all_probs[column_name] = [0.0] * len(df_images)
+                            all_probs[column_name][idx] = prob
+
+                except Exception as e:
+                    error = f"Replicate API error: {str(e)}"
+                    print(f"Error classifying ImageNet for {image_path}: {error}")
+                    df.loc[idx, 'error_yolo11_imagenet'] = error
+                    if 'image_file' in locals():
+                        image_file.close()
+                    continue
 
             except Exception as e:
                 error = f"Error processing {image_path}: {str(e)}"
@@ -1588,87 +1782,18 @@ def predict_imagenet_classes_yolo11(self, df_images):
                 continue
         
         # Create a DataFrame from the collected probabilities and join with original DataFrame
-        probs_df = pd.DataFrame(all_probs)
-        result_df = pd.concat([df, probs_df], axis=1)
-        return result_df
+        if all_probs:
+            probs_df = pd.DataFrame(all_probs)
+            result_df = pd.concat([df, probs_df], axis=1)
+            return result_df
+        else:
+            return df
 
     except Exception as e:
         print(f"Error in YOLO11 ImageNet classification setup: {str(e)}")
+        df['error_yolo11_imagenet'] = f"Setup error: {str(e)}"
         return df
 
-def predict_coco_labels_yolo11(self, df_images):
-    """
-    Predicts COCO labels in a list of images.
-
-    :param self: IA object
-    :param df_images: DataFrame containing image filePaths.
-    :return: A DataFrame containing COCO labels and their prediction probabilities for each image.
-    """
-    # Create a copy of the input DataFrame to store results
-    df = df_images.copy()
-
-    try:
-        # Check if weights are downloaded already, otherwise download them
-        download_weights(
-            weight_filename='yolov11n.pt', 
-            weight_url='https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n.pt'
-        )
-        download_weights(
-            weight_filename='coco.names', 
-            weight_url='https://opencv-tutorial.readthedocs.io/en/latest/_downloads/a9fb13cbea0745f3d11da9017d1b8467/coco.names'
-        )
-
-        # Load the YOLOv11 model
-        model = YOLO('../image_analyzer/weights/yolov11n.pt')
-
-        # Load COCO labels
-        try:
-            with open('../image_analyzer/weights/coco.names', 'r') as f:
-                classes = ['coco_' + line.strip() for line in f.readlines()]
-        except Exception as e:
-            print(f"Error loading COCO labels: {str(e)}")
-            return df
-
-        # Initialize columns for each class
-        for label in classes:
-            df[label] = 0.0
-
-        # Iterate over all images
-        for idx, image_path in enumerate(tqdm(df_images['filePath'])):
-            try:
-                # Check if file exists
-                if not os.path.exists(image_path):
-                    if self.verbose: print(f"Warning: File not found: {image_path}")
-                    continue
-
-                # Load image
-                img =   cv2.imread(image_path)
-                if img is None:
-                    if self.verbose: print(f"Warning: Failed to load image: {image_path}")
-                    continue
-
-                # Perform inference
-                results = model(img, verbose=False)
-
-                # Analyze the outputs
-                for result in results:
-                    for detection in result.boxes:
-                        class_id = int(detection.cls)
-                        confidence = float(detection.conf)
-                        if confidence > df.at[idx, classes[class_id]]:
-                            df.at[idx, classes[class_id]] = confidence
-
-            except Exception as e:
-                error = f"Error processing {image_path}: {str(e)}"
-                print(error)
-                df.loc[idx, 'error_yolo11_coco'] = error
-                continue
-
-        return df
-
-    except Exception as e:
-        print(f"Error in YOLO11 COCO detection setup: {str(e)}")
-        return df
 
 def self_similarity(self, df_images):
     """
@@ -1758,6 +1883,7 @@ def self_similarity(self, df_images):
         print(f"Error in self-similarity setup: {str(e)}")
         return df
 
+
 def visual_complexity(self, df_images):
     """
     Calculate the visual complexity of each image by counting the number of regions in the binary image.
@@ -1826,3 +1952,4 @@ def visual_complexity(self, df_images):
     except Exception as e:
         print(f"Error in visual complexity setup: {str(e)}")
         return df
+

@@ -3,7 +3,7 @@ from flask_socketio import SocketIO, emit, join_room
 import os
 import pandas as pd
 from datetime import datetime
-from src.image_analyzer.pipeline.ia_pipeline import IA
+from src.image_analyzer.pipeline.ia_pipeline_deployment import IA
 import yaml
 import shutil
 import threading
@@ -17,7 +17,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'outputs'
-DEFAULT_CONFIG_FILE = os.path.join('config', 'configuration_default.yaml')
+DEFAULT_CONFIG_FILE = os.path.join('config', 'configuration_deployment.yaml')
 CURR_CONFIG_FILE = os.path.join('config', 'configuration.yaml')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
