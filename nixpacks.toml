@@ -1,9 +1,6 @@
 # nixpacks.toml
 # Override Nixpacks default behavior to use requirementsDeployment.txt instead of requirements.txt
 
-[phases.setup]
-nixPkgs = ["python312", "pip"]
-
 [phases.install]
 cmds = [
   "pip install --upgrade pip",
