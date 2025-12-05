@@ -203,6 +203,13 @@ def get_user_folder(user_id, base_folder):
     os.makedirs(user_folder, exist_ok=True)
     return user_folder
 
+def get_user_zip_folder(user_id):
+    """Get user-specific folder for ZIP files in database/user_id/ (returns absolute path)"""
+    user_zip_folder = os.path.join(DATABASE_BASE_PATH, user_id)
+    user_zip_folder = os.path.abspath(user_zip_folder)  # Always use absolute path
+    os.makedirs(user_zip_folder, exist_ok=True)
+    return user_zip_folder
+
 def cleanup_old_results(user_id, keep_count=3):
     """
     Cleanup old results, keeping only the last N runs per user.
@@ -211,26 +218,30 @@ def cleanup_old_results(user_id, keep_count=3):
     :param keep_count: Number of recent runs to keep (default: 3)
     """
     try:
+        # ZIP files are stored in database/user_id/
+        user_zip_folder = get_user_zip_folder(user_id)
+        # Pipeline outputs are still in outputs/user_id/
         user_output_folder = get_user_folder(user_id, OUTPUT_FOLDER)
         
-        # Get all ZIP files for this user
+        # Get all ZIP files for this user from database/user_id/
         zip_files = []
-        for filename in os.listdir(user_output_folder):
-            if filename.endswith('.zip') and filename.startswith('Image-Analyzer_run_'):
-                zip_path = os.path.join(user_output_folder, filename)
-                if os.path.isfile(zip_path):
-                    try:
-                        timestamp_str = filename.replace('Image-Analyzer_run_', '').replace('.zip', '')
-                        mtime = os.path.getmtime(zip_path)
-                        zip_files.append({
-                            'filename': filename,
-                            'path': zip_path,
-                            'timestamp': timestamp_str,
-                            'mtime': mtime
-                        })
-                    except Exception as e:
-                        print(f"Error parsing timestamp from {filename}: {e}")
-                        continue
+        if os.path.exists(user_zip_folder):
+            for filename in os.listdir(user_zip_folder):
+                if filename.endswith('.zip') and filename.startswith('Image-Analyzer_run_'):
+                    zip_path = os.path.join(user_zip_folder, filename)
+                    if os.path.isfile(zip_path):
+                        try:
+                            timestamp_str = filename.replace('Image-Analyzer_run_', '').replace('.zip', '')
+                            mtime = os.path.getmtime(zip_path)
+                            zip_files.append({
+                                'filename': filename,
+                                'path': zip_path,
+                                'timestamp': timestamp_str,
+                                'mtime': mtime
+                            })
+                        except Exception as e:
+                            print(f"Error parsing timestamp from {filename}: {e}")
+                            continue
         
         # Sort by modification time (newest first)
         zip_files.sort(key=lambda x: x['mtime'], reverse=True)
@@ -245,7 +256,7 @@ def cleanup_old_results(user_id, keep_count=3):
             except Exception as e:
                 print(f"Error deleting ZIP {zip_info['filename']}: {e}")
         
-        # Also delete corresponding run folders
+        # Also delete corresponding run folders from outputs/user_id/
         deleted_folders = 0
         for zip_info in zip_files[keep_count:]:
             timestamp_str = zip_info['timestamp']
@@ -291,14 +302,15 @@ def get_user_results_history(user_id, max_results=3):
     :return: List of result dictionaries with filename, download_path, timestamp, and formatted_date
     """
     try:
-        user_output_folder = get_user_folder(user_id, OUTPUT_FOLDER)
+        # ZIP files are stored in database/user_id/
+        user_zip_folder = get_user_zip_folder(user_id)
         
-        # Get all ZIP files for this user
+        # Get all ZIP files for this user from database/user_id/
         zip_files = []
-        if os.path.exists(user_output_folder):
-            for filename in os.listdir(user_output_folder):
+        if os.path.exists(user_zip_folder):
+            for filename in os.listdir(user_zip_folder):
                 if filename.endswith('.zip') and filename.startswith('Image-Analyzer_run_'):
-                    zip_path = os.path.join(user_output_folder, filename)
+                    zip_path = os.path.join(user_zip_folder, filename)
                     if os.path.isfile(zip_path):
                         try:
                             timestamp_str = filename.replace('Image-Analyzer_run_', '').replace('.zip', '')
@@ -351,7 +363,7 @@ def progress_callback(progress_data, user_session_id):
 def get_user_config_path(user_id=None):
     """
     Get the path to the user-specific config file.
-    User-specific configs are stored in database/configs/ folder.
+    User-specific configs are stored in database/user_id/config.yaml.
     If user_id is None, tries to get it from session.
     Returns the user-specific path if user exists, otherwise returns default.
     """
@@ -359,9 +371,9 @@ def get_user_config_path(user_id=None):
         user_id = session.get('user_id')
     
     if user_id:
-        # Store user-specific configs in database/configs/ folder
-        configs_dir = os.path.join(DATABASE_BASE_PATH, 'configs')
-        user_config_file = os.path.join(configs_dir, f'{user_id}.yaml')
+        # Store user-specific configs in database/user_id/config.yaml
+        user_dir = os.path.join(DATABASE_BASE_PATH, user_id)
+        user_config_file = os.path.join(user_dir, 'config.yaml')
         return user_config_file
     return DEFAULT_CONFIG_FILE
 
@@ -387,7 +399,7 @@ def load_config(user_id=None):
 def save_config(config_data, user_id=None):
     """
     Save configuration for a user.
-    Saves to user-specific config file in database/configs/ folder if user_id is provided.
+    Saves to user-specific config file in database/user_id/config.yaml if user_id is provided.
     
     :param config_data: Configuration dictionary to save
     :param user_id: Optional user ID. If None, tries to get from session.
@@ -396,11 +408,11 @@ def save_config(config_data, user_id=None):
         user_id = session.get('user_id')
     
     if user_id:
-        # Save to user-specific config file in database/configs/ folder
+        # Save to user-specific config file in database/user_id/config.yaml
         user_config_file = get_user_config_path(user_id)
-        # Ensure configs directory exists
-        configs_dir = os.path.dirname(user_config_file)
-        os.makedirs(configs_dir, exist_ok=True)
+        # Ensure user directory exists
+        user_dir = os.path.dirname(user_config_file)
+        os.makedirs(user_dir, exist_ok=True)
         with open(user_config_file, 'w') as file:
             yaml.dump(config_data, file, default_flow_style=False, sort_keys=False)
     else:
@@ -749,9 +761,10 @@ def process_images():
                 # Use that directory as the source for the ZIP
                 pipeline_output_dir = ia.output_dir
                 
-                # Create zip file with selected output formats in user's output folder
+                # Create zip file with selected output formats in database/user_id/
                 zip_filename = f"{run_folder_name}.zip"
-                zip_path = os.path.abspath(os.path.join(user_output_folder, zip_filename))
+                user_zip_folder = get_user_zip_folder(user_id)
+                zip_path = os.path.abspath(os.path.join(user_zip_folder, zip_filename))
 
                 # Always use output_formats from user-specific config (or default)
                 config = load_config(user_id)
@@ -801,6 +814,15 @@ def process_images():
                     delete_batch_folder(batch_folder)
                 except Exception as e:
                     print(f"Warning: Could not delete batch folder: {e}")
+                
+                # Cleanup: Delete pipeline output folder after ZIP creation (only ZIP is needed)
+                # pipeline_output_dir is already the run folder path (e.g., outputs/user_id/Image-Analyzer_run_timestamp)
+                try:
+                    if os.path.exists(pipeline_output_dir) and os.path.isdir(pipeline_output_dir):
+                        shutil.rmtree(pipeline_output_dir)
+                        print(f"Deleted pipeline output folder: {pipeline_output_dir}")
+                except Exception as e:
+                    print(f"Warning: Could not delete pipeline output folder: {e}")
                 
                 # Cleanup: Keep only last 3 results per user
                 try:
@@ -917,13 +939,13 @@ def check_processing_status():
         
         # If completed or error, include download links if available
         if processing_info.get('status') == 'completed':
-            # Try to find the most recent zip file
-            user_output_folder = get_user_folder(user_id, OUTPUT_FOLDER)
+            # Try to find the most recent zip file from database/user_id/
+            user_zip_folder = get_user_zip_folder(user_id)
             zip_files = []
-            if os.path.exists(user_output_folder):
-                for filename in os.listdir(user_output_folder):
+            if os.path.exists(user_zip_folder):
+                for filename in os.listdir(user_zip_folder):
                     if filename.endswith('.zip') and filename.startswith('Image-Analyzer_run_'):
-                        zip_path = os.path.join(user_output_folder, filename)
+                        zip_path = os.path.join(user_zip_folder, filename)
                         if os.path.isfile(zip_path):
                             mtime = os.path.getmtime(zip_path)
                             zip_files.append({
@@ -946,33 +968,49 @@ def check_processing_status():
 @app.route('/download/<path:filename>')
 @login_required
 def download_file(filename):
-    """Download file from user's output folder"""
+    """Download file from user's database folder (ZIP files) or output folder (other files)"""
     user_id = session.get('user_id')
-    
-    # Get user output folder (already absolute from get_user_folder)
-    user_output_folder = get_user_folder(user_id, OUTPUT_FOLDER)
     
     # If filename includes user_id prefix, remove it
     if filename.startswith(f"{user_id}/"):
         filename = filename[len(user_id) + 1:]
     
-    # Build the full file path using absolute paths consistently
-    file_path = os.path.abspath(os.path.join(user_output_folder, filename))
-    
-    # Security check: ensure the resolved file path is within the user's output folder
-    # Both paths are now absolute, so we can do a simple prefix check
-    if not file_path.startswith(user_output_folder):
-        return jsonify({'status': 'error', 'message': 'Invalid file path'}), 403
-    
-    # Check that file exists and is a file (not a directory)
-    if not os.path.exists(file_path):
-        return jsonify({'status': 'error', 'message': 'File not found'}), 404
-    
-    if not os.path.isfile(file_path):
-        return jsonify({'status': 'error', 'message': 'Not a file'}), 403
-    
-    # Use the relative filename for send_from_directory (needs relative path from directory)
-    return send_from_directory(user_output_folder, filename, as_attachment=True)
+    # Check if it's a ZIP file - ZIP files are in database/user_id/
+    if filename.endswith('.zip') and filename.startswith('Image-Analyzer_run_'):
+        user_zip_folder = get_user_zip_folder(user_id)
+        file_path = os.path.abspath(os.path.join(user_zip_folder, filename))
+        
+        # Security check: ensure the resolved file path is within the user's zip folder
+        if not file_path.startswith(user_zip_folder):
+            return jsonify({'status': 'error', 'message': 'Invalid file path'}), 403
+        
+        # Check that file exists and is a file (not a directory)
+        if not os.path.exists(file_path):
+            return jsonify({'status': 'error', 'message': 'File not found'}), 404
+        
+        if not os.path.isfile(file_path):
+            return jsonify({'status': 'error', 'message': 'Not a file'}), 403
+        
+        # Use the relative filename for send_from_directory (needs relative path from directory)
+        return send_from_directory(user_zip_folder, filename, as_attachment=True)
+    else:
+        # Other files are still in outputs/user_id/
+        user_output_folder = get_user_folder(user_id, OUTPUT_FOLDER)
+        file_path = os.path.abspath(os.path.join(user_output_folder, filename))
+        
+        # Security check: ensure the resolved file path is within the user's output folder
+        if not file_path.startswith(user_output_folder):
+            return jsonify({'status': 'error', 'message': 'Invalid file path'}), 403
+        
+        # Check that file exists and is a file (not a directory)
+        if not os.path.exists(file_path):
+            return jsonify({'status': 'error', 'message': 'File not found'}), 404
+        
+        if not os.path.isfile(file_path):
+            return jsonify({'status': 'error', 'message': 'Not a file'}), 403
+        
+        # Use the relative filename for send_from_directory (needs relative path from directory)
+        return send_from_directory(user_output_folder, filename, as_attachment=True)
 
 @app.route('/uploads/<path:filename>')
 def serve_upload(filename):

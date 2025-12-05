@@ -534,7 +534,6 @@
                     
                     <div id="processing-image-info" style="margin-top: 1.5rem;">
                         <div class="alert alert-warning" style="display: flex; align-items: center; background-color: rgba(255, 193, 7, 0.1); color: #856404; border-left: 3px solid #ffc107;">
-                            <i class="fas fa-exclamation-triangle me-2"></i>
                             <div id="processing-quota-warning"></div>
                         </div>
                     </div>
@@ -711,7 +710,7 @@
                 
                 // Reset button after a short delay to allow user to see completion
                 setTimeout(() => {
-                    if (currentBatchFolder) {
+                    if (processButton) {
                         processButton.disabled = false;
                         processButton.innerHTML = '<i class="fas fa-cogs me-2"></i>Process Images';
                     }
@@ -726,7 +725,7 @@
                 });
                 
                 // Reset button on error
-                if (currentBatchFolder) {
+                if (processButton) {
                     processButton.disabled = false;
                     processButton.innerHTML = '<i class="fas fa-cogs me-2"></i>Process Images';
                 }
