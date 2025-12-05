@@ -54,16 +54,16 @@
     <div class="login-container">
         <div class="login-header">
             <h1>Image Analyzer</h1>
-            <p class="text-muted">Admin Login</p>
+            <p class="text-muted">Login</p>
         </div>
         <form id="loginForm">
-            <div class="mb-3">
+            <div class="mb-3" id="usernameGroup">
                 <label for="username" class="form-label">Username</label>
-                <input type="text" class="form-control" id="username" name="username" required autofocus>
+                <input type="text" class="form-control" id="username" name="username" autocomplete="username" required>
             </div>
-            <div class="mb-3">
-                <label for="password" class="form-label">Password</label>
-                <input type="password" class="form-control" id="password" name="password" required>
+            <div class="mb-3" id="secretGroup">
+                <label for="secret" class="form-label">Secret</label>
+                <input type="password" class="form-control" id="secret" name="secret" autocomplete="current-password" required>
             </div>
             <button type="submit" class="btn btn-primary w-100">Login</button>
             <div id="errorMessage" class="alert alert-danger d-none" role="alert"></div>
@@ -77,15 +77,16 @@
             errorDiv.classList.add('d-none');
             
             const formData = new FormData(this);
+            const payload = {
+                username: formData.get('username'),
+                secret: formData.get('secret')
+            };
             const response = await fetch('/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    username: formData.get('username'),
-                    password: formData.get('password')
-                })
+                body: JSON.stringify(payload)
             });
             
             const data = await response.json();

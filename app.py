@@ -2,6 +2,7 @@ from flask import Flask, request, render_template, send_from_directory, jsonify,
 from flask_socketio import SocketIO, emit, join_room
 from functools import wraps
 import os
+import sqlite3
 import pandas as pd
 from datetime import datetime
 from src.image_analyzer.pipeline.ia_pipeline_deployment import IA
@@ -12,6 +13,8 @@ import time
 import zipfile
 import tempfile
 import hashlib
+import secrets
+from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -23,30 +26,15 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-change-in-pr
 DEPLOYMENT_PLATFORM = os.getenv('DEPLOYMENT_PLATFORM', 'local')
 PORT = int(os.getenv('PORT', 5000))
 
-# Auto-configure APP_BASE_URL if not set
-# APP_BASE_URL is used by Replicate API to access uploaded images via public URLs
-if not os.getenv('APP_BASE_URL'):
-    # Auto-detect Railway (Railway sets RAILWAY_PUBLIC_DOMAIN automatically)
-    if os.getenv('RAILWAY_ENVIRONMENT'):
-        DEPLOYMENT_PLATFORM = 'railway'
-        railway_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN')
-        if railway_domain:
-            # Railway provides HTTPS automatically
-            os.environ['APP_BASE_URL'] = f"https://{railway_domain}"
-        else:
-            # Fallback (shouldn't happen on Railway)
-            os.environ['APP_BASE_URL'] = f"http://localhost:{PORT}"
-    
-    # Auto-detect Google Cloud
-    elif os.getenv('GOOGLE_CLOUD_PROJECT'):
-        DEPLOYMENT_PLATFORM = 'gcp'
-        # GCP: User must set APP_BASE_URL manually to their VM's external IP
-        # For now, use placeholder (user should set this in .env)
-        os.environ['APP_BASE_URL'] = f"http://localhost:{PORT}"  # User should override
-    
-    # Local development: optional, defaults to localhost
-    else:
-        os.environ['APP_BASE_URL'] = f"http://localhost:{PORT}"
+# Auto-configure APP_BASE_URL (Railway or local). No manual env required.
+# Used by Replicate API to access uploaded images via public URLs.
+railway_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN')
+if railway_domain:
+    DEPLOYMENT_PLATFORM = 'railway'
+    os.environ['APP_BASE_URL'] = f"https://{railway_domain}"
+else:
+    # Local development: defaults to localhost
+    os.environ['APP_BASE_URL'] = f"http://localhost:{PORT}"
 
 socketio = SocketIO(app, cors_allowed_origins="*")
 
@@ -57,8 +45,128 @@ CURR_CONFIG_FILE = os.path.join('config', 'configuration.yaml')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
+# Database path configuration (prefers explicit env, then Railway volume, else local folder)
+DATABASE_BASE_PATH = os.getenv('DATABASE_PATH') or os.getenv('RAILWAY_VOLUME_MOUNT_PATH') or './database'
+os.environ['DATABASE_PATH'] = DATABASE_BASE_PATH  # expose for downstream code/tools
+os.makedirs(DATABASE_BASE_PATH, exist_ok=True)
+DB_FILE = os.path.join(DATABASE_BASE_PATH, 'user.db')
+
 # Per-user processing state: {user_id: socketio_room}
 user_processing = {}
+
+
+# --- Database helpers ---
+def get_db_connection():
+    """Create a SQLite connection (auto-commit)"""
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    """Initialize the user database (users table stores token hashes and limits)."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            token_hash TEXT NOT NULL,
+            image_limit INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    conn.commit()
+    conn.close()
+
+
+def upsert_user_token(username: str, raw_token: str, image_limit: int):
+    """Create or replace a user's token hash and image limit."""
+    token_hash = generate_password_hash(raw_token)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO users (username, token_hash, image_limit)
+        VALUES (?, ?, ?)
+        ON CONFLICT(username) DO UPDATE SET
+            token_hash=excluded.token_hash,
+            image_limit=excluded.image_limit
+        """,
+        (username, token_hash, image_limit),
+    )
+    conn.commit()
+    conn.close()
+    return raw_token  # return raw token so caller can show it once
+
+
+def verify_user_token(username: str, raw_token: str) -> bool:
+    """Verify a user's token against the stored hash."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT token_hash FROM users WHERE username = ?", (username,))
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        return False
+    return check_password_hash(row["token_hash"], raw_token)
+
+
+def get_user_quota(username: str) -> int:
+    """Return remaining image quota for user (defaults to 0 if missing)."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT image_limit FROM users WHERE username = ?", (username,))
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        return 0
+    return row["image_limit"] or 0
+
+
+def consume_user_quota(username: str, count: int) -> tuple[bool, int]:
+    """Attempt to deduct count from user's quota. Returns (ok, remaining)."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT image_limit FROM users WHERE username = ?", (username,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return False, 0
+    remaining = row["image_limit"] or 0
+    if remaining < count:
+        conn.close()
+        return False, remaining
+    new_remaining = remaining - count
+    cur.execute("UPDATE users SET image_limit = ? WHERE username = ?", (new_remaining, username))
+    conn.commit()
+    conn.close()
+    return True, new_remaining
+
+
+def list_users():
+    """Return list of users with basic info."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT username, image_limit, created_at FROM users ORDER BY username")
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return rows
+
+
+def delete_user(username: str):
+    """Delete user by username."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM users WHERE username = ?", (username,))
+    conn.commit()
+    conn.close()
+
+
+# Initialize database on startup
+init_db()
 
 def login_required(f):
     """Decorator to require login for routes"""
@@ -66,6 +174,16 @@ def login_required(f):
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
             return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def admin_required(f):
+    """Decorator to require admin role"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if session.get('role') != 'admin':
+            return jsonify({'status': 'error', 'message': 'Admin privileges required'}), 403
         return f(*args, **kwargs)
     return decorated_function
 
@@ -91,31 +209,36 @@ def save_config(config_data):
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Login page and authentication"""
+    """Login: admin uses password from env hash; users use token stored in DB."""
     if request.method == 'POST':
-        data = request.get_json()
+        data = request.get_json() or {}
         username = data.get('username')
-        password = data.get('password')
-        
-        # Check username
-        if username != 'admin':
+        secret = data.get('secret')  # admin password or user token
+
+        if not username or not secret:
+            return jsonify({'status': 'error', 'message': 'Username and secret required'}), 400
+
+        admin_user = os.getenv('ADMIN_USERNAME', 'admin')
+        admin_hash = os.getenv('ADMIN_HASH_BCRYPT')
+
+        if username == admin_user:
+            if not admin_hash:
+                return jsonify({'status': 'error', 'message': 'Server configuration error'}), 500
+            if not check_password_hash(admin_hash, secret):
+                return jsonify({'status': 'error', 'message': 'Invalid credentials'}), 401
+            session['user_id'] = admin_user
+            session['role'] = 'admin'
+            session.permanent = True
+            return jsonify({'status': 'success', 'message': 'Admin login successful'})
+
+        # regular user via token stored in DB
+        if not verify_user_token(username, secret):
             return jsonify({'status': 'error', 'message': 'Invalid credentials'}), 401
-        
-        # Verify password hash
-        admin_password_hash = os.getenv('ADMIN_PASSWORD_HASH')
-        if not admin_password_hash:
-            return jsonify({'status': 'error', 'message': 'Server configuration error'}), 500
-        
-        # Hash the provided password and compare
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
-        if password_hash != admin_password_hash:
-            return jsonify({'status': 'error', 'message': 'Invalid credentials'}), 401
-        
-        # Set session
-        session['user_id'] = hashlib.sha256(f"{username}{datetime.now()}".encode()).hexdigest()[:16]
+        session['user_id'] = username
+        session['role'] = 'user'
         session.permanent = True
-        return jsonify({'status': 'success', 'message': 'Login successful'})
-    
+        return jsonify({'status': 'success', 'message': 'User login successful'})
+
     # GET request - show login page
     if 'user_id' in session:
         return redirect(url_for('upload_file'))
@@ -129,6 +252,69 @@ def logout():
         del user_processing[user_id]
     session.clear()
     return redirect(url_for('login'))
+
+
+@app.route('/admin')
+@login_required
+@admin_required
+def admin_home():
+    """Render admin user management page."""
+    users = list_users()
+    return render_template('admin.html', users=users)
+
+
+@app.route('/admin/create-token', methods=['POST'])
+@login_required
+@admin_required
+def admin_create_token():
+    """Admin endpoint to create or update a user token with an image limit."""
+    try:
+        data = request.get_json()
+        username = (data or {}).get('username')
+        token = (data or {}).get('token')
+        image_limit = int((data or {}).get('image_limit', 0))
+
+        if not username or not token:
+            return jsonify({'status': 'error', 'message': 'Username and token are required'}), 400
+        if image_limit < 0:
+            return jsonify({'status': 'error', 'message': 'Image limit must be >= 0'}), 400
+
+        saved_token = upsert_user_token(username, token, image_limit)
+        return jsonify({
+            'status': 'success',
+            'message': f'Token set for user {username}',
+            'image_limit': image_limit,
+            'token': saved_token  # only returned on creation/update
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/admin/users', methods=['GET'])
+@login_required
+@admin_required
+def admin_list_users():
+    """List users (JSON) for admin dashboard."""
+    try:
+        return jsonify({'status': 'success', 'users': list_users()})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/admin/delete-user', methods=['POST'])
+@login_required
+@admin_required
+def admin_delete_user():
+    """Delete a user."""
+    try:
+        data = request.get_json() or {}
+        username = data.get('username')
+        if not username:
+            return jsonify({'status': 'error', 'message': 'Username required'}), 400
+        delete_user(username)
+        return jsonify({'status': 'success', 'message': f'User {username} deleted'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/config', methods=['GET', 'POST'])
 @login_required
@@ -221,6 +407,7 @@ def process_images():
         user_id = session.get('user_id')
         if not user_id:
             return jsonify({'status': 'error', 'message': 'Session expired'}), 401
+        user_role = session.get('role', 'user')
         
         data = request.get_json()
         batch_folder = data.get('batch_folder')
@@ -233,6 +420,20 @@ def process_images():
         user_upload_folder = get_user_folder(user_id, UPLOAD_FOLDER)
         if not batch_folder.startswith(user_upload_folder):
             return jsonify({'status': 'error', 'message': 'Invalid batch folder'}), 403
+
+        # Enforce user quota (admins are exempt)
+        if user_role != 'admin':
+            # Count images in the batch folder (simple filter by common extensions)
+            image_exts = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff'}
+            images_to_process = [
+                f for f in os.listdir(batch_folder)
+                if os.path.isfile(os.path.join(batch_folder, f))
+                and os.path.splitext(f)[1].lower() in image_exts
+            ]
+            img_count = len(images_to_process)
+            ok, remaining = consume_user_quota(user_id, img_count)
+            if not ok:
+                return jsonify({'status': 'error', 'message': f'Quota exceeded. Remaining: {remaining} images'}), 403
         
         # Store user's processing session for progress updates
         if socketio_session_id:
