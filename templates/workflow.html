@@ -275,6 +275,15 @@
             background: var(--primary-color);
             width: 0;
             transition: width 0.3s ease;
+            position: relative;
+        }
+        
+        .progress-bar.success {
+            background-color: var(--success-color) !important;
+        }
+        
+        .progress-bar.error {
+            background-color: var(--danger-color) !important;
         }
 
         .file-list {
@@ -361,6 +370,12 @@
         .workflow-step-card:nth-child(2) { animation-delay: 0.2s; }
         .workflow-step-card:nth-child(3) { animation-delay: 0.3s; }
         .workflow-step-card:nth-child(4) { animation-delay: 0.4s; }
+        .workflow-step-card:nth-child(5) { animation-delay: 0.5s; }
+        
+        /* Processing step specific styles */
+        .processing-step-card {
+            display: flex; /* Always visible */
+        }
 
         @keyframes fadeInUp {
             to {
@@ -443,10 +458,18 @@
                     If you made a mistake, please refresh the page and start over.
                 </p>
                 
-                <div class="alert alert-success" id="upload-success" style="display: none;">
-                    <i class="fas fa-check-circle me-2"></i>
-                    <span id="upload-success-text"></span>
+                <!-- Upload Progress Bar -->
+                <div id="upload-progress" style="display: none; margin-top: 1rem; margin-bottom: 1rem;">
+                    <div class="progress">
+                        <div class="progress-bar" id="upload-progress-bar" role="progressbar" style="width: 0%"></div>
+                    </div>
                 </div>
+                
+                <div class="alert" id="upload-status" style="display: none; margin-top: 1rem;">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <span id="upload-status-text"></span>
+                </div>
+                
                 <div class="alert alert-danger" id="upload-error" style="display: none;">
                     <i class="fas fa-exclamation-circle me-2"></i>
                     <span id="upload-error-text"></span>
@@ -477,13 +500,6 @@
                     <i class="fas fa-cogs me-2"></i>Process Images
                 </button>
 
-                <div class="progress" style="display: none;">
-                    <div class="progress-bar" role="progressbar" style="width: 0%"></div>
-                </div>
-                <div id="progress-text" class="text-muted mt-2" style="display: none; font-size: 0.9rem;">
-                    <!-- Progress text will be updated here -->
-                </div>
-
                 <div class="alert alert-info" id="process-disclaimer" style="margin-top: 1rem;">
                     <i class="fas fa-info-circle me-2"></i>
                     <strong>Note:</strong> All processed images will be deleted once analyzed.
@@ -500,8 +516,49 @@
             </div>
         </div>
         
-        <div class="workflow-step-card">
+        <div class="workflow-step-card processing-step-card" id="processing-step-card">
             <div class="step-number">3</div>
+            <div class="step-header">
+                <div class="step-icon">
+                    <i class="fas fa-cogs"></i>
+                </div>
+                <h4>Processing Images</h4>
+            </div>
+            <div class="step-content">
+                <div id="processing-idle-message">
+                    <p>No processing is currently active. To start processing:</p>
+                    <ol>
+                        <li>Upload your images in Step 2</li>
+                        <li>Click "Process Images" to begin analysis</li>
+                    </ol>
+                    
+                    <div id="processing-image-info" style="margin-top: 1.5rem;">
+                        <div class="alert alert-warning" style="display: flex; align-items: center; background-color: rgba(255, 193, 7, 0.1); color: #856404; border-left: 3px solid #ffc107;">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <div id="processing-quota-warning"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="processing-active-content" style="display: none;">
+                    <p>Your images are being processed. You can safely close this page and return later to check the progress.</p>
+                    
+                    <div id="processing-progress" style="display: none; margin-top: 1rem;">
+                        <div class="progress">
+                            <div class="progress-bar" id="processing-progress-bar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info" id="processing-status" style="margin-top: 1rem;">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <span id="processing-status-text">Processing...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="workflow-step-card">
+            <div class="step-number">4</div>
             <div class="step-header">
                 <div class="step-icon">
                     <i class="fas fa-download"></i>
@@ -557,7 +614,17 @@
     <!-- Socket.IO client library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     
+    <!-- Initialize server-side variables -->
+    <script type="application/json" id="server-data">
+    {
+        "userQuota": {% if quota is not none %}{{ quota }}{% else %}null{% endif %}
+    }
+    </script>
+    
     <script>
+        // Parse server-side variables
+        const serverData = JSON.parse(document.getElementById('server-data').textContent);
+        const userQuota = serverData.userQuota;
         // Handle collapse toggle for recent runs
         document.addEventListener('DOMContentLoaded', function() {
             const collapseElement = document.getElementById('recentRunsCollapse');
@@ -572,6 +639,12 @@
                     chevron.style.transform = 'rotate(0deg)';
                 });
             }
+            
+            // Check for active processing on page load
+            checkProcessingStatus();
+            
+            // Update image info on page load
+            updateProcessingImageInfo();
         });
         // Initialize Socket.IO connection
         const socket = io();
@@ -589,6 +662,8 @@
         // Socket.IO event handlers
         socket.on('connect', function() {
             console.log('Connected to server');
+            // Check for active processing on connect
+            checkProcessingStatus();
         });
 
         socket.on('disconnect', function() {
@@ -596,7 +671,8 @@
         });
 
         socket.on('progress_update', function(data) {
-            updateProgress(data);
+            // Only update processing step (Step 3), not upload step (Step 2)
+            updateProcessingStep(data);
         });
 
         socket.on('joined_session', function(data) {
@@ -605,8 +681,9 @@
 
         socket.on('processing_complete', function(data) {
             const processButton = document.getElementById('processButton');
-            const progressBar = document.querySelector('.progress');
-            const progressText = document.getElementById('progress-text');
+            
+            // Hide processing step active content, show idle message
+            showProcessingIdle();
             
             if (data.status === 'success') {
                 showProcessMessage('success', data.message);
@@ -627,49 +704,241 @@
                 
                 processButton.disabled = true;
                 processButton.innerHTML = '<i class="fas fa-check me-2"></i>Processing Complete';
-                progressBar.style.display = 'none';
-                if (progressText) {
-                    progressText.style.display = 'none';
-                }
+                
+                // Update processing step to show completion (green)
+                updateProgressBar('processing', {
+                    percentage: 1.0,
+                    text: 'Processing complete',
+                    status: 'success',
+                    message: 'Processing completed successfully!'
+                });
             } else {
                 showProcessMessage('error', data.message);
                 processButton.disabled = true;
                 processButton.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Processing Failed';
-                progressBar.style.display = 'none';
-                if (progressText) {
-                    progressText.style.display = 'none';
-                }
+                
+                // Update processing step to show error
+                updateProgressBar('processing', {
+                    status: 'error',
+                    message: data.message
+                });
             }
             
             // Reset session ID
             currentSessionId = null;
         });
 
-        function updateProgress(data) {
-            const progressBar = document.querySelector('.progress-bar');
-            const progressContainer = document.querySelector('.progress');
-            const progressText = document.getElementById('progress-text');
-            const processButton = document.getElementById('processButton');
+        // Removed updateProgress function - progress is now only shown in Step 3
+        
+        function updateProcessingStep(data) {
+            if (!document.getElementById('processing-step-card')) return;
+            
+            showProcessingActive();
+            updateProgressBar('processing', {
+                percentage: data.percentage !== undefined ? data.percentage : 0,
+                text: data.message || 'Processing...',
+                status: data.status || 'processing',
+                message: data.message || 'Processing...'
+            });
+        }
+        
+        // Ensure progress is shown when restoring state on page load
+        function restoreProcessingProgress(progress) {
+            if (progress && progress.percentage !== undefined) {
+                updateProcessingStep(progress);
+            }
+        }
+        
+        // Progress configuration for reusability
+        const progressConfig = {
+            upload: {
+                barId: 'upload-progress-bar',
+                containerId: 'upload-progress',
+                statusId: 'upload-status'
+            },
+            processing: {
+                barId: 'processing-progress-bar',
+                containerId: 'processing-progress',
+                statusId: 'processing-status'
+            }
+        };
+        
+        // Central progress bar update function
+        function updateProgressBar(type, data) {
+            const config = progressConfig[type];
+            if (!config) return;
+            
+            const progressBar = document.getElementById(config.barId);
+            const progressContainer = document.getElementById(config.containerId);
+            const statusAlert = document.getElementById(config.statusId);
+            
+            if (!progressBar || !progressContainer) return;
             
             // Update progress bar
-            const percentage = Math.round(data.percentage * 100);
+            const percentage = data.percentage !== undefined ? Math.round(data.percentage * 100) : 0;
             progressBar.style.width = percentage + '%';
             progressBar.setAttribute('aria-valuenow', percentage);
-            
-            // Update progress text
-            if (progressText) {
-                progressText.textContent = `${data.message}`;
-                progressText.style.display = 'block';
-            }
             
             // Show progress container
             progressContainer.style.display = 'block';
             
-            // Update button state based on status
-            // Keep progress bar visible during all processing steps
-            if (data.status === 'starting' || data.status === 'processing' || data.status === 'completed' || data.status === 'finalizing') {
+            // Update status alert and progress bar color
+            if (statusAlert) {
+                const status = data.status || 'info';
+                const message = data.message || data.text || '';
+                
+                statusAlert.className = 'alert';
+                progressBar.classList.remove('success', 'error');
+                
+                if (status === 'success' || status === 'completed') {
+                    statusAlert.classList.add('alert-success');
+                    statusAlert.innerHTML = '<i class="fas fa-check-circle me-2"></i>' + message;
+                    progressBar.classList.add('success');
+                } else if (status === 'error') {
+                    statusAlert.classList.add('alert-danger');
+                    statusAlert.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>' + message;
+                    progressBar.classList.add('error');
+                } else {
+                    statusAlert.classList.add('alert-info');
+                    statusAlert.innerHTML = '<i class="fas fa-info-circle me-2"></i>' + message;
+                }
+                
+                statusAlert.style.display = 'block';
+            }
+        }
+        
+        // Upload-specific wrapper functions
+        function showUploadProgress(uploaded, total, status = 'uploading', message = '') {
+            updateProgressBar('upload', {
+                percentage: total > 0 ? uploaded / total : 0,
+                text: `${uploaded} / ${total} images`,
+                status: status,
+                message: message || 'Uploading images...'
+            });
+        }
+        
+        function hideUploadProgress() {
+            const progressContainer = document.getElementById('upload-progress');
+            const statusAlert = document.getElementById('upload-status');
+            if (progressContainer) {
+                progressContainer.style.display = 'none';
+            }
+            if (statusAlert) {
+                statusAlert.style.display = 'none';
+            }
+        }
+        
+        function setUploadSuccess(total, message = '') {
+            const successMessage = message || `Successfully uploaded ${total} image${total !== 1 ? 's' : ''}`;
+            updateProgressBar('upload', {
+                percentage: 1.0,
+                text: `Upload complete: ${total} images`,
+                status: 'success',
+                message: successMessage
+            });
+        }
+        
+        function checkProcessingStatus() {
+            return fetch('/check-processing-status')
+                .then(response => {
+                    if (handleAuthError(response)) return null;
+                    return response.json();
+                })
+                .then(data => {
+                    if (!data) return;
+                    
+                    if (data.status === 'active') {
+                        // Restore processing state
+                        const processingStatus = data.processing_status;
+                        const progress = data.progress || {};
+                        
+                        // Rejoin the room if we have a session_id
+                        if (data.session_id) {
+                            currentSessionId = data.session_id;
+                            socket.emit('join_session', { session_id: currentSessionId });
+                        }
+                        
+                        // Disable process button - processing is active
+                        const processButton = document.getElementById('processButton');
+                        if (processButton) {
                 processButton.disabled = true;
-                processButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+                            if (processingStatus === 'processing' || processingStatus === 'starting' || processingStatus === 'finalizing') {
+                                processButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing in Progress...';
+                            } else {
+                                processButton.innerHTML = '<i class="fas fa-cogs me-2"></i>Process Images';
+                            }
+                        }
+                        
+                        // Show processing step and restore progress
+                        showProcessingActive();
+                        restoreProcessingProgress(progress);
+                        
+                        // If completed, show download links
+                        if (processingStatus === 'completed' && data.download_links) {
+                            const downloadLinks = document.getElementById('download-links');
+                            downloadLinks.innerHTML = '';
+                            
+                            if (data.download_links.zip) {
+                                const zipLink = document.createElement('a');
+                                zipLink.href = `/download/${data.download_links.zip}`;
+                                zipLink.className = 'btn btn-primary download-link';
+                                zipLink.innerHTML = '<i class="fas fa-file-archive me-2"></i>Download Current Result (ZIP)';
+                                downloadLinks.appendChild(zipLink);
+                                downloadLinks.style.display = 'block';
+                                document.getElementById('download-placeholder').style.display = 'none';
+                            }
+                        }
+                    } else {
+                        // No active processing - show idle state and enable button
+                        showProcessingIdle();
+                        const processButton = document.getElementById('processButton');
+                        if (processButton && currentBatchFolder) {
+                            processButton.disabled = false;
+                            processButton.innerHTML = '<i class="fas fa-cogs me-2"></i>Process Images';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking processing status:', error);
+                    showProcessingIdle();
+                });
+        }
+        
+        function showProcessingIdle() {
+            const idleMessage = document.getElementById('processing-idle-message');
+            const activeContent = document.getElementById('processing-active-content');
+            
+            if (idleMessage) idleMessage.style.display = 'block';
+            if (activeContent) activeContent.style.display = 'none';
+            
+            // Update image count and quota info
+            updateProcessingImageInfo();
+        }
+        
+        function showProcessingActive() {
+            const idleMessage = document.getElementById('processing-idle-message');
+            const activeContent = document.getElementById('processing-active-content');
+            
+            if (idleMessage) idleMessage.style.display = 'none';
+            if (activeContent) activeContent.style.display = 'block';
+        }
+        
+        function updateProcessingImageInfo() {
+            // Update quota warning only
+            const quotaWarningElement = document.getElementById('processing-quota-warning');
+            
+            if (quotaWarningElement) {
+                if (userQuota !== null && userQuota !== undefined) {
+                    quotaWarningElement.innerHTML = `
+                        <strong>You have ${userQuota} image${userQuota !== 1 ? 's' : ''} remaining in your quota.</strong><br>
+                        Please consider carefully which images to analyze, as each processed image will consume one from your quota.
+                    `;
+                } else {
+                    // Admin or unlimited quota
+                    quotaWarningElement.innerHTML = `
+                        <strong>Unlimited quota available.</strong> You can process as many images as needed.
+                    `;
+                }
             }
         }
 
@@ -732,10 +1001,17 @@
             document.getElementById('process-success').style.display = 'none';
             document.getElementById('process-error').style.display = 'none';
             
-            // Reset process button to enabled state
+            // Hide upload error
+            document.getElementById('upload-error').style.display = 'none';
+            
+            // Reset process button to enabled state (if no processing is active)
+            checkProcessingStatus().then(() => {
             const processButton = document.getElementById('processButton');
+                if (!processButton.disabled) {
             processButton.disabled = false;
             processButton.innerHTML = '<i class="fas fa-cogs me-2"></i>Process Images';
+                }
+            });
             
             // Store uploaded files
             uploadedFiles = Array.from(files);
@@ -788,7 +1064,7 @@
                 } else {
                     // Clear the batch folder if no files remain
                     currentBatchFolder = null;
-                    showUploadMessage('info', 'All files removed. Please upload new files.');
+                    hideUploadProgress();
                 }
             }
         }
@@ -802,10 +1078,17 @@
             document.getElementById('process-success').style.display = 'none';
             document.getElementById('process-error').style.display = 'none';
             
-            // Reset process button to enabled state
+            // Hide upload error
+            document.getElementById('upload-error').style.display = 'none';
+            
+            // Reset process button to enabled state (if no processing is active)
+            checkProcessingStatus().then(() => {
             const processButton = document.getElementById('processButton');
+                if (!processButton.disabled) {
             processButton.disabled = false;
             processButton.innerHTML = '<i class="fas fa-cogs me-2"></i>Process Images';
+                }
+            });
             
             // Store uploaded files
             uploadedFiles = Array.from(files);
@@ -845,8 +1128,18 @@
         }
 
         function uploadFiles(files) {
+            const fileArray = Array.from(files);
+            const totalFiles = fileArray.length;
+            let uploadedCount = 0;
+            
+            // Show upload progress
+            showUploadProgress(0, totalFiles, 'uploading', 'Starting upload...');
+            
+            // Hide any previous errors
+            document.getElementById('upload-error').style.display = 'none';
+            
             const formData = new FormData();
-            Array.from(files).forEach(file => {
+            fileArray.forEach(file => {
                 formData.append('files[]', file);
             });
 
@@ -856,31 +1149,80 @@
                 formData.append('clear_existing', 'true');
             }
 
-            fetch('/', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => {
-                if (handleAuthError(response)) return null;
-                return response.json();
-            })
-            .then(data => {
-                if (!data) return;
+            // Track upload progress using XMLHttpRequest for better progress tracking
+            const xhr = new XMLHttpRequest();
+            
+            xhr.upload.addEventListener('progress', function(e) {
+                if (e.lengthComputable) {
+                    const percentComplete = (e.loaded / e.total) * 100;
+                    // Estimate uploaded files based on progress
+                    uploadedCount = Math.floor((percentComplete / 100) * totalFiles);
+                    showUploadProgress(uploadedCount, totalFiles);
+                }
+            });
+            
+            xhr.addEventListener('load', function() {
+                if (xhr.status === 200) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
                 if (data.status === 'success') {
                     currentBatchFolder = data.batch_folder;
-                    showUploadMessage('success', data.message);
+                            showUploadProgress(totalFiles, totalFiles);
+                            // Hide progress after a short delay
+                            setTimeout(() => {
+                                hideUploadProgress();
+                            }, 1000);
+                            // Update quota info
+                            updateProcessingImageInfo();
                 } else {
-                    showUploadMessage('error', data.message);
+                            hideUploadProgress();
+                            showUploadError(data.message || 'Upload failed');
+                        }
+                    } catch (e) {
+                        hideUploadProgress();
+                        showUploadError('Error parsing server response');
+                    }
+                } else {
+                    hideUploadProgress();
+                    if (xhr.status === 401 || xhr.status === 403) {
+                        window.location.href = '/login';
+                    } else {
+                        showUploadError('Upload failed with status: ' + xhr.status);
+                    }
                 }
-            })
-            .catch(error => {
-                showUploadMessage('error', 'Error uploading files: ' + error);
             });
+            
+            xhr.addEventListener('error', function() {
+                hideUploadProgress();
+                showUploadError('Error uploading files');
+            });
+            
+            xhr.open('POST', '/');
+            xhr.send(formData);
+        }
+        
+        function showUploadError(message) {
+            const errorElement = document.getElementById('upload-error');
+            const errorText = document.getElementById('upload-error-text');
+            if (errorElement && errorText) {
+                errorText.textContent = message;
+                errorElement.style.display = 'block';
+            }
         }
 
         function uploadFolder(files) {
+            const fileArray = Array.from(files);
+            const totalFiles = fileArray.length;
+            let uploadedCount = 0;
+            
+            // Show upload progress
+            showUploadProgress(0, totalFiles, 'uploading', 'Starting upload...');
+            
+            // Hide any previous errors
+            document.getElementById('upload-error').style.display = 'none';
+            
             const formData = new FormData();
-            Array.from(files).forEach(file => {
+            fileArray.forEach(file => {
                 formData.append('folder', file);
             });
 
@@ -890,26 +1232,57 @@
                 formData.append('clear_existing', 'true');
             }
 
-            fetch('/', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => {
-                if (handleAuthError(response)) return null;
-                return response.json();
-            })
-            .then(data => {
-                if (!data) return;
+            // Track upload progress using XMLHttpRequest for better progress tracking
+            const xhr = new XMLHttpRequest();
+            
+            xhr.upload.addEventListener('progress', function(e) {
+                if (e.lengthComputable) {
+                    const percentComplete = (e.loaded / e.total) * 100;
+                    // Estimate uploaded files based on progress
+                    uploadedCount = Math.floor((percentComplete / 100) * totalFiles);
+                    showUploadProgress(uploadedCount, totalFiles);
+                }
+            });
+            
+            xhr.addEventListener('load', function() {
+                if (xhr.status === 200) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
                 if (data.status === 'success') {
                     currentBatchFolder = data.batch_folder;
-                    showUploadMessage('success', data.message);
+                            // Show success state (green)
+                            setUploadSuccess(totalFiles, `Successfully uploaded ${totalFiles} image${totalFiles !== 1 ? 's' : ''}`);
+                            // Hide progress after a delay
+                            setTimeout(() => {
+                                hideUploadProgress();
+                            }, 3000);
+                            // Update quota info
+                            updateProcessingImageInfo();
                 } else {
-                    showUploadMessage('error', data.message);
+                            hideUploadProgress();
+                            showUploadError(data.message || 'Upload failed');
+                        }
+                    } catch (e) {
+                        hideUploadProgress();
+                        showUploadError('Error parsing server response');
+                    }
+                } else {
+                    hideUploadProgress();
+                    if (xhr.status === 401 || xhr.status === 403) {
+                        window.location.href = '/login';
+                    } else {
+                        showUploadError('Upload failed with status: ' + xhr.status);
+                    }
                 }
-            })
-            .catch(error => {
-                showUploadMessage('error', 'Error uploading folder: ' + error);
             });
+            
+            xhr.addEventListener('error', function() {
+                hideUploadProgress();
+                showUploadError('Error uploading folder');
+            });
+            
+            xhr.open('POST', '/');
+            xhr.send(formData);
         }
 
         function processImages() {
@@ -918,19 +1291,21 @@
                 return;
             }
 
+            // Check if processing is already in progress
             const processButton = document.getElementById('processButton');
-            const progressBar = document.querySelector('.progress');
-            const progressBarInner = document.querySelector('.progress-bar');
+            if (processButton.disabled) {
+                return; // Already processing
+            }
             
-            // Reset progress bar
-            progressBarInner.style.width = '0%';
-            progressBar.style.display = 'block';
             processButton.disabled = true;
             processButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
             
             // Hide previous messages
             document.getElementById('process-success').style.display = 'none';
             document.getElementById('process-error').style.display = 'none';
+            
+            // Show processing step active content
+            showProcessingActive();
 
             // Generate a unique session ID for this processing job
             currentSessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -976,7 +1351,6 @@
                     showProcessMessage('error', 'Please select at least one output format in the configuration');
                     processButton.disabled = true;
                     processButton.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Configuration Error';
-                    progressBar.style.display = 'none';
                     return;
                 }
 
@@ -1001,7 +1375,6 @@
                 showProcessMessage('error', 'Failed to establish connection. Please try again.');
                 processButton.disabled = false;
                 processButton.innerHTML = '<i class="fas fa-cogs me-2"></i>Process Images';
-                progressBar.style.display = 'none';
             })
             .then(response => {
                 if (!response) return null;
@@ -1018,7 +1391,6 @@
                     showProcessMessage('error', data.message);
                     processButton.disabled = true;
                     processButton.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Processing Failed';
-                    progressBar.style.display = 'none';
                     currentSessionId = null;
                 }
             })
@@ -1026,31 +1398,11 @@
                 showProcessMessage('error', 'Error processing images: ' + error);
                 processButton.disabled = true;
                 processButton.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Processing Failed';
-                progressBar.style.display = 'none';
                 currentSessionId = null;
             });
         }
 
-        function showUploadMessage(type, message) {
-            const successMessage = document.getElementById('upload-success');
-            const errorMessage = document.getElementById('upload-error');
-            const successText = document.getElementById('upload-success-text');
-            const errorText = document.getElementById('upload-error-text');
-
-            if (type === 'success') {
-                successText.textContent = message;
-                successMessage.style.display = 'block';
-                errorMessage.style.display = 'none';
-            } else if (type === 'info') {
-                successText.textContent = message;
-                successMessage.style.display = 'block';
-                errorMessage.style.display = 'none';
-            } else {
-                errorText.textContent = message;
-                errorMessage.style.display = 'block';
-                successMessage.style.display = 'none';
-            }
-        }
+        // showUploadMessage removed - using showUploadError and progress bar instead
 
         function showProcessMessage(type, message) {
             const successMessage = document.getElementById('process-success');

@@ -51,7 +51,7 @@ os.environ['DATABASE_PATH'] = DATABASE_BASE_PATH  # expose for downstream code/t
 os.makedirs(DATABASE_BASE_PATH, exist_ok=True)
 DB_FILE = os.path.join(DATABASE_BASE_PATH, 'user.db')
 
-# Per-user processing state: {user_id: socketio_room}
+# Per-user processing state: {user_id: {'session_id': str, 'status': str, 'progress': dict, 'started_at': timestamp}}
 user_processing = {}
 
 
@@ -332,10 +332,21 @@ def get_user_results_history(user_id, max_results=3):
 def progress_callback(progress_data, user_session_id):
     """Callback function to emit progress updates via WebSocket"""
     if user_session_id in user_processing:
-        room_id = user_processing[user_session_id]
-        socketio.emit('progress_update', progress_data, room=room_id, namespace='/')
-        # Small sleep to allow the event to be processed and sent immediately
-        time.sleep(0.01)
+        processing_info = user_processing[user_session_id]
+        room_id = processing_info.get('session_id')
+        
+        # Update stored progress state
+        processing_info['progress'] = progress_data
+        processing_info['status'] = progress_data.get('status', 'processing')
+        
+        # Try to emit progress update, but don't fail if session is disconnected
+        try:
+            socketio.emit('progress_update', progress_data, room=room_id, namespace='/')
+            # Small sleep to allow the event to be processed and sent immediately
+            time.sleep(0.01)
+        except (KeyError, RuntimeError) as e:
+            # Session disconnected - silently ignore but keep progress state
+            print(f"Could not send progress update (session disconnected): {e}")
 
 def get_user_config_path(user_id=None):
     """
@@ -661,6 +672,16 @@ def process_images():
         if not batch_folder.startswith(user_upload_folder):
             return jsonify({'status': 'error', 'message': 'Invalid batch folder'}), 403
 
+        # Check if processing is already in progress
+        if user_id in user_processing:
+            processing_info = user_processing[user_id]
+            status = processing_info.get('status', '')
+            if status in ['processing', 'starting', 'finalizing']:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Processing already in progress. Please wait for current job to complete.'
+                }), 409  # Conflict status
+
         # Enforce user quota (admins are exempt)
         if user_role != 'admin':
             image_exts = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff'}
@@ -674,10 +695,28 @@ def process_images():
             if not ok:
                 return jsonify({'status': 'error', 'message': f'Quota exceeded. Remaining: {remaining} images'}), 403
         
+        # Clean up any old processing state for this user
+        if user_id in user_processing:
+            old_session_id = user_processing[user_id].get('session_id')
+            # Try to notify old session if it still exists
+            try:
+                if old_session_id:
+                    socketio.emit('processing_complete', {
+                        'status': 'cancelled',
+                        'message': 'New processing started'
+                    }, room=old_session_id)
+            except (KeyError, RuntimeError):
+                pass  # Old session already disconnected, ignore
+        
         # Store user's processing session for progress updates
         # The client should have already joined the room via join_session event
         # before calling this endpoint, so the room exists and is ready for progress updates
-        user_processing[user_id] = socketio_session_id
+        user_processing[user_id] = {
+            'session_id': socketio_session_id,
+            'status': 'processing',
+            'progress': {'percentage': 0.0, 'status': 'starting', 'message': 'Initializing...'},
+            'started_at': time.time()
+        }
         
         # Process images in a background thread to allow Socket.IO events to be sent immediately
         def process_images_background():
@@ -769,23 +808,51 @@ def process_images():
                 except Exception as e:
                     print(f"Warning: Could not cleanup old results: {e}")
                 
+                # Update state to completed
+                if user_id in user_processing:
+                    user_processing[user_id]['status'] = 'completed'
+                    user_processing[user_id]['progress'] = {
+                        'percentage': 1.0,
+                        'status': 'completed',
+                        'message': 'Processing completed successfully'
+                    }
+                
                 # Send completion notification
-                socketio.emit('processing_complete', {
-                    'status': 'success',
-                    'message': 'Images processed successfully',
-                    'download_links': {'zip': f"{user_id}/{zip_filename}"}
-                }, room=socketio_session_id)
+                try:
+                    socketio.emit('processing_complete', {
+                        'status': 'success',
+                        'message': 'Images processed successfully',
+                        'download_links': {'zip': f"{user_id}/{zip_filename}"}
+                    }, room=socketio_session_id)
+                except (KeyError, RuntimeError) as e:
+                    # Session disconnected - silently ignore but keep state
+                    print(f"Could not send completion notification (session disconnected): {e}")
                 
             except Exception as e:
                 print(f"Error in background processing: {e}")
-                socketio.emit('processing_complete', {
-                    'status': 'error',
-                    'message': str(e)
-                }, room=socketio_session_id)
-            finally:
-                # Clean up user_processing entry
+                
+                # Update state to error
                 if user_id in user_processing:
-                    del user_processing[user_id]
+                    user_processing[user_id]['status'] = 'error'
+                    user_processing[user_id]['progress'] = {
+                        'percentage': 0.0,
+                        'status': 'error',
+                        'message': str(e)
+                    }
+                
+                # Send error notification
+                try:
+                    socketio.emit('processing_complete', {
+                        'status': 'error',
+                        'message': str(e)
+                    }, room=socketio_session_id)
+                except (KeyError, RuntimeError) as e2:
+                    # Session disconnected - silently ignore but keep state
+                    print(f"Could not send error notification (session disconnected): {e2}")
+            finally:
+                # Don't delete user_processing entry immediately - keep it for reconnection
+                # It will be cleaned up after some time or on next processing start
+                pass
         
         # Start processing in background thread
         socketio.start_background_task(process_images_background)
@@ -799,6 +866,78 @@ def process_images():
         return jsonify({'status': 'error', 'message': str(e)}), 500
     # Note: user_processing cleanup is handled in the background thread's finally block
     # We don't clean it up here because the background thread is still running
+
+@app.route('/get-uploaded-image-count', methods=['GET'])
+@login_required
+def get_uploaded_image_count():
+    """Get the count of uploaded images in the most recent batch folder"""
+    user_id = session.get('user_id')
+    user_upload_folder = get_user_folder(user_id, UPLOAD_FOLDER)
+    
+    uploaded_image_count = 0
+    if os.path.exists(user_upload_folder):
+        # Find the most recent batch folder
+        batch_folders = []
+        for item in os.listdir(user_upload_folder):
+            item_path = os.path.join(user_upload_folder, item)
+            if os.path.isdir(item_path) and item.startswith('batch_'):
+                mtime = os.path.getmtime(item_path)
+                batch_folders.append((item_path, mtime))
+        
+        if batch_folders:
+            # Get the most recent batch folder
+            latest_batch = max(batch_folders, key=lambda x: x[1])[0]
+            # Count image files
+            image_exts = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff', '.tif'}
+            for filename in os.listdir(latest_batch):
+                if os.path.isfile(os.path.join(latest_batch, filename)):
+                    if os.path.splitext(filename)[1].lower() in image_exts:
+                        uploaded_image_count += 1
+    
+    return jsonify({'image_count': uploaded_image_count})
+
+@app.route('/check-processing-status', methods=['GET'])
+@login_required
+def check_processing_status():
+    """Check if there's an active processing job for the current user"""
+    user_id = session.get('user_id')
+    
+    if user_id in user_processing:
+        processing_info = user_processing[user_id]
+        response_data = {
+            'status': 'active',
+            'processing_status': processing_info.get('status', 'processing'),
+            'progress': processing_info.get('progress', {}),
+            'session_id': processing_info.get('session_id')
+        }
+        
+        # If completed or error, include download links if available
+        if processing_info.get('status') == 'completed':
+            # Try to find the most recent zip file
+            user_output_folder = get_user_folder(user_id, OUTPUT_FOLDER)
+            zip_files = []
+            if os.path.exists(user_output_folder):
+                for filename in os.listdir(user_output_folder):
+                    if filename.endswith('.zip') and filename.startswith('Image-Analyzer_run_'):
+                        zip_path = os.path.join(user_output_folder, filename)
+                        if os.path.isfile(zip_path):
+                            mtime = os.path.getmtime(zip_path)
+                            zip_files.append({
+                                'filename': filename,
+                                'mtime': mtime,
+                                'download_path': f"{user_id}/{filename}"
+                            })
+            
+            if zip_files:
+                # Get the most recent zip file
+                zip_files.sort(key=lambda x: x['mtime'], reverse=True)
+                response_data['download_links'] = {'zip': zip_files[0]['download_path']}
+        
+        return jsonify(response_data)
+    else:
+        return jsonify({
+            'status': 'inactive'
+        })
 
 @app.route('/download/<path:filename>')
 @login_required
@@ -849,6 +988,10 @@ def config_new_page():
 def handle_connect():
     """Handle client connection"""
     emit('connected', {'data': 'Connected'})
+    
+    # Check if user has active processing and send current state
+    # Note: We can't access session directly in Socket.IO, so we'll rely on
+    # the client to check status via HTTP endpoint after connecting
 
 @socketio.on('disconnect')
 def handle_disconnect():

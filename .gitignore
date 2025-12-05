@@ -13,6 +13,7 @@ develop-eggs/
 dist/
 database/
 replicate_models/
+data/
 downloads/
 eggs/
 .eggs/
