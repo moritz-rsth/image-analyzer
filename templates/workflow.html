@@ -702,26 +702,34 @@
                     document.getElementById('download-placeholder').style.display = 'none';
                 }
                 
-                processButton.disabled = true;
-                processButton.innerHTML = '<i class="fas fa-check me-2"></i>Processing Complete';
-                
                 // Update processing step to show completion (green)
                 updateProgressBar('processing', {
                     percentage: 1.0,
-                    text: 'Processing complete',
                     status: 'success',
                     message: 'Processing completed successfully!'
                 });
+                
+                // Reset button after a short delay to allow user to see completion
+                setTimeout(() => {
+                    if (currentBatchFolder) {
+                        processButton.disabled = false;
+                        processButton.innerHTML = '<i class="fas fa-cogs me-2"></i>Process Images';
+                    }
+                }, 2000);
             } else {
                 showProcessMessage('error', data.message);
-                processButton.disabled = true;
-                processButton.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Processing Failed';
                 
                 // Update processing step to show error
                 updateProgressBar('processing', {
                     status: 'error',
                     message: data.message
                 });
+                
+                // Reset button on error
+                if (currentBatchFolder) {
+                    processButton.disabled = false;
+                    processButton.innerHTML = '<i class="fas fa-cogs me-2"></i>Process Images';
+                }
             }
             
             // Reset session ID
@@ -873,19 +881,28 @@
                         showProcessingActive();
                         restoreProcessingProgress(progress);
                         
-                        // If completed, show download links
-                        if (processingStatus === 'completed' && data.download_links) {
-                            const downloadLinks = document.getElementById('download-links');
-                            downloadLinks.innerHTML = '';
-                            
-                            if (data.download_links.zip) {
-                                const zipLink = document.createElement('a');
-                                zipLink.href = `/download/${data.download_links.zip}`;
-                                zipLink.className = 'btn btn-primary download-link';
-                                zipLink.innerHTML = '<i class="fas fa-file-archive me-2"></i>Download Current Result (ZIP)';
-                                downloadLinks.appendChild(zipLink);
-                                downloadLinks.style.display = 'block';
-                                document.getElementById('download-placeholder').style.display = 'none';
+                        // If completed, show download links and reset button
+                        if (processingStatus === 'completed') {
+                            showProcessingIdle();
+                            if (data.download_links) {
+                                const downloadLinks = document.getElementById('download-links');
+                                downloadLinks.innerHTML = '';
+                                
+                                if (data.download_links.zip) {
+                                    const zipLink = document.createElement('a');
+                                    zipLink.href = `/download/${data.download_links.zip}`;
+                                    zipLink.className = 'btn btn-primary download-link';
+                                    zipLink.innerHTML = '<i class="fas fa-file-archive me-2"></i>Download Current Result (ZIP)';
+                                    downloadLinks.appendChild(zipLink);
+                                    downloadLinks.style.display = 'block';
+                                    document.getElementById('download-placeholder').style.display = 'none';
+                                }
+                            }
+                            // Enable button if files are uploaded
+                            const processButton = document.getElementById('processButton');
+                            if (processButton && currentBatchFolder) {
+                                processButton.disabled = false;
+                                processButton.innerHTML = '<i class="fas fa-cogs me-2"></i>Process Images';
                             }
                         }
                     } else {

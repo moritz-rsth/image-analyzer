@@ -828,6 +828,10 @@ def process_images():
                     # Session disconnected - silently ignore but keep state
                     print(f"Could not send completion notification (session disconnected): {e}")
                 
+                # Clear processing state after completion to allow new processing
+                if user_id in user_processing:
+                    del user_processing[user_id]
+                
             except Exception as e:
                 print(f"Error in background processing: {e}")
                 
@@ -849,10 +853,10 @@ def process_images():
                 except (KeyError, RuntimeError) as e2:
                     # Session disconnected - silently ignore but keep state
                     print(f"Could not send error notification (session disconnected): {e2}")
-            finally:
-                # Don't delete user_processing entry immediately - keep it for reconnection
-                # It will be cleaned up after some time or on next processing start
-                pass
+                
+                # Clear processing state after error to allow retry
+                if user_id in user_processing:
+                    del user_processing[user_id]
         
         # Start processing in background thread
         socketio.start_background_task(process_images_background)
