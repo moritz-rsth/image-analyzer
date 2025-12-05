@@ -16,6 +16,7 @@ import hashlib
 import secrets
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
+import logging
 
 load_dotenv()
 
@@ -36,7 +37,11 @@ else:
     # Local development: defaults to localhost
     os.environ['APP_BASE_URL'] = f"http://localhost:{PORT}"
 
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+# Configure logging to suppress harmless Socket.IO session errors
+logging.getLogger('socketio').setLevel(logging.ERROR)
+logging.getLogger('engineio').setLevel(logging.ERROR)
+
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading', logger=False, engineio_logger=False)
 
 UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'outputs'
@@ -1037,7 +1042,9 @@ def handle_connect():
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    """Handle client disconnection"""
+    """Handle client disconnection - silently ignore, session cleanup is automatic"""
+    # Socket.IO automatically cleans up disconnected sessions
+    # No need to manually clean up here as background tasks handle errors gracefully
     pass
 
 @socketio.on('join_session')
