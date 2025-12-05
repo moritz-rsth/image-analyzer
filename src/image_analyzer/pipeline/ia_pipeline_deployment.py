@@ -183,14 +183,26 @@ class IA:
         df_logs['active'] = None
         df_logs['seconds_needed'] = None
 
+        currently_unavailable_functions = [
+            detect_faces,
+            predict_coco_labels_yolo11,
+            predict_imagenet_classes_yolo11
+        ]
+        
+
         # Save interim df_out and df_logs
         self.save_results(df_out)
         self.save_logs(df_logs)
 
         # Identify which functions should be processed
         active_functions = []
+        unavailable_function_names = [func.__name__ for func in currently_unavailable_functions]
         for idx, row in df_logs.iterrows():
             func_name = row['functions'].__name__
+            # Skip unavailable functions even if they are marked as active in config
+            if func_name in unavailable_function_names:
+                df_logs.at[idx, 'active'] = False
+                continue
             df_logs.at[idx, 'active'] = self.config.get('features', {}).get(func_name, {}).get('active', False)
             if df_logs.at[idx, 'active']:
                 active_functions.append(func_name)
