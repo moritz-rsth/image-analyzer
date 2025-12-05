@@ -203,10 +203,137 @@ def get_user_folder(user_id, base_folder):
     os.makedirs(user_folder, exist_ok=True)
     return user_folder
 
+def cleanup_old_results(user_id, keep_count=3):
+    """
+    Cleanup old results, keeping only the last N runs per user.
+    
+    :param user_id: User ID
+    :param keep_count: Number of recent runs to keep (default: 3)
+    """
+    try:
+        user_output_folder = get_user_folder(user_id, OUTPUT_FOLDER)
+        
+        # Get all ZIP files for this user
+        zip_files = []
+        for filename in os.listdir(user_output_folder):
+            if filename.endswith('.zip') and filename.startswith('Image-Analyzer_run_'):
+                zip_path = os.path.join(user_output_folder, filename)
+                if os.path.isfile(zip_path):
+                    try:
+                        timestamp_str = filename.replace('Image-Analyzer_run_', '').replace('.zip', '')
+                        mtime = os.path.getmtime(zip_path)
+                        zip_files.append({
+                            'filename': filename,
+                            'path': zip_path,
+                            'timestamp': timestamp_str,
+                            'mtime': mtime
+                        })
+                    except Exception as e:
+                        print(f"Error parsing timestamp from {filename}: {e}")
+                        continue
+        
+        # Sort by modification time (newest first)
+        zip_files.sort(key=lambda x: x['mtime'], reverse=True)
+        
+        # Delete old ZIP files (keep only keep_count most recent)
+        deleted_zips = 0
+        for zip_info in zip_files[keep_count:]:
+            try:
+                os.remove(zip_info['path'])
+                deleted_zips += 1
+                print(f"Deleted old ZIP: {zip_info['filename']}")
+            except Exception as e:
+                print(f"Error deleting ZIP {zip_info['filename']}: {e}")
+        
+        # Also delete corresponding run folders
+        deleted_folders = 0
+        for zip_info in zip_files[keep_count:]:
+            timestamp_str = zip_info['timestamp']
+            folder_name = f"Image-Analyzer_run_{timestamp_str}"
+            folder_path = os.path.join(user_output_folder, folder_name)
+            
+            if os.path.exists(folder_path) and os.path.isdir(folder_path):
+                try:
+                    shutil.rmtree(folder_path)
+                    deleted_folders += 1
+                    print(f"Deleted old run folder: {folder_name}")
+                except Exception as e:
+                    print(f"Error deleting folder {folder_name}: {e}")
+        
+        if deleted_zips > 0 or deleted_folders > 0:
+            print(f"Cleanup completed: deleted {deleted_zips} ZIP files and {deleted_folders} folders for user {user_id}")
+        
+    except Exception as e:
+        print(f"Error during cleanup for user {user_id}: {e}")
+
+
+def delete_batch_folder(batch_folder):
+    """
+    Delete the batch folder and all its contents.
+    
+    :param batch_folder: Path to the batch folder to delete
+    """
+    try:
+        if os.path.exists(batch_folder) and os.path.isdir(batch_folder):
+            shutil.rmtree(batch_folder)
+            print(f"Deleted batch folder: {batch_folder}")
+        else:
+            print(f"Batch folder does not exist: {batch_folder}")
+    except Exception as e:
+        print(f"Error deleting batch folder {batch_folder}: {e}")
+
+def get_user_results_history(user_id, max_results=3):
+    """
+    Get the last N results for a user.
+    
+    :param user_id: User ID
+    :param max_results: Maximum number of results to return (default: 3)
+    :return: List of result dictionaries with filename, download_path, timestamp, and formatted_date
+    """
+    try:
+        user_output_folder = get_user_folder(user_id, OUTPUT_FOLDER)
+        
+        # Get all ZIP files for this user
+        zip_files = []
+        if os.path.exists(user_output_folder):
+            for filename in os.listdir(user_output_folder):
+                if filename.endswith('.zip') and filename.startswith('Image-Analyzer_run_'):
+                    zip_path = os.path.join(user_output_folder, filename)
+                    if os.path.isfile(zip_path):
+                        try:
+                            timestamp_str = filename.replace('Image-Analyzer_run_', '').replace('.zip', '')
+                            mtime = os.path.getmtime(zip_path)
+                            # Parse timestamp for display
+                            try:
+                                dt = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
+                                formatted_date = dt.strftime('%Y-%m-%d %H:%M:%S')
+                            except:
+                                formatted_date = timestamp_str
+                            
+                            zip_files.append({
+                                'filename': filename,
+                                'download_path': f"{user_id}/{filename}",
+                                'timestamp': timestamp_str,
+                                'formatted_date': formatted_date,
+                                'mtime': mtime
+                            })
+                        except Exception as e:
+                            print(f"Error parsing timestamp from {filename}: {e}")
+                            continue
+        
+        # Sort by modification time (newest first) and keep only last N
+        zip_files.sort(key=lambda x: x['mtime'], reverse=True)
+        return zip_files[:max_results]
+        
+    except Exception as e:
+        print(f"Error getting results history for user {user_id}: {e}")
+        return []
+
 def progress_callback(progress_data, user_session_id):
     """Callback function to emit progress updates via WebSocket"""
     if user_session_id in user_processing:
-        socketio.emit('progress_update', progress_data, room=user_processing[user_session_id])
+        room_id = user_processing[user_session_id]
+        socketio.emit('progress_update', progress_data, room=room_id)
 
 def load_config():
     with open(DEFAULT_CONFIG_FILE, 'r') as file:
@@ -446,16 +573,23 @@ def upload_file():
             'batch_folder': batch_folder
         })
     
-    return render_template('workflow.html')
+    # Get user quota for display (only for regular users, not admins)
+    quota = None
+    if session.get('role') == 'user':
+        quota = get_user_quota(user_id)
+    
+    # Get results history (last 3 runs)
+    results_history = get_user_results_history(user_id, max_results=3)
+    
+    return render_template('workflow.html', quota=quota, results_history=results_history)
 
 @app.route('/process-images', methods=['POST'])
 @login_required
 def process_images():
+    user_id = session.get('user_id')
+    user_role = session.get('role', 'user')
+    
     try:
-        user_id = session.get('user_id')
-        if not user_id:
-            return jsonify({'status': 'error', 'message': 'Session expired'}), 401
-        user_role = session.get('role', 'user')
         
         data = request.get_json()
         batch_folder = data.get('batch_folder')
@@ -464,6 +598,9 @@ def process_images():
         if not batch_folder:
             return jsonify({'status': 'error', 'message': 'No batch folder specified'}), 400
         
+        if not socketio_session_id:
+            return jsonify({'status': 'error', 'message': 'Session ID required for progress updates'}), 400
+        
         # Verify batch folder belongs to this user
         user_upload_folder = get_user_folder(user_id, UPLOAD_FOLDER)
         if not batch_folder.startswith(user_upload_folder):
@@ -471,7 +608,6 @@ def process_images():
 
         # Enforce user quota (admins are exempt)
         if user_role != 'admin':
-            # Count images in the batch folder (simple filter by common extensions)
             image_exts = {'.jpg', '.jpeg', '.png', '.bmp', '.gif', '.webp', '.tiff'}
             images_to_process = [
                 f for f in os.listdir(batch_folder)
@@ -484,8 +620,7 @@ def process_images():
                 return jsonify({'status': 'error', 'message': f'Quota exceeded. Remaining: {remaining} images'}), 403
         
         # Store user's processing session for progress updates
-        if socketio_session_id:
-            user_processing[user_id] = socketio_session_id
+        user_processing[user_id] = socketio_session_id
         
         # Create a fresh Image Analyzer instance for this batch
         ia = IA(config_path=CURR_CONFIG_FILE)
@@ -496,7 +631,7 @@ def process_images():
         # Reset the pipeline for clean state (this will generate a new timestamp)
         ia.reset_pipeline()
         
-        # Process the images with progress callback (pass user_id for room lookup)
+        # Process the images with progress callback
         def user_progress_callback(progress_data):
             progress_callback(progress_data, user_id)
         
@@ -558,12 +693,17 @@ def process_images():
                 zipf.write(config_path, f"{run_folder_name}/configuration.yaml")
                 print(f"### Configuration file added to ZIP from: {config_path} ###")
         
-        # Clear user's processing session
-        if user_id in user_processing:
-            del user_processing[user_id]
+        # Cleanup: Delete uploaded images after successful processing
+        try:
+            delete_batch_folder(batch_folder)
+        except Exception as e:
+            print(f"Warning: Could not delete batch folder: {e}")
         
-        # Clean up Image Analyzer instance
-        del ia
+        # Cleanup: Keep only last 3 results per user
+        try:
+            cleanup_old_results(user_id, keep_count=3)
+        except Exception as e:
+            print(f"Warning: Could not cleanup old results: {e}")
         
         return jsonify({
             'status': 'success',
@@ -571,21 +711,19 @@ def process_images():
             'download_links': {'zip': f"{user_id}/{zip_filename}"}
         })
     except Exception as e:
-        # Clear user's processing session on error
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    finally:
+        # Always clean up session and resources
         if user_id in user_processing:
             del user_processing[user_id]
-        # Clean up IA instance if it exists
         if 'ia' in locals():
             del ia
-        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/download/<path:filename>')
 @login_required
 def download_file(filename):
     """Download file from user's output folder"""
     user_id = session.get('user_id')
-    if not user_id:
-        return jsonify({'status': 'error', 'message': 'Session expired'}), 401
     
     # Get user output folder (already absolute from get_user_folder)
     user_output_folder = get_user_folder(user_id, OUTPUT_FOLDER)
@@ -629,15 +767,12 @@ def config_new_page():
 @socketio.on('connect')
 def handle_connect():
     """Handle client connection"""
-    # Note: Flask-SocketIO doesn't have direct access to Flask session
-    # Session validation happens on HTTP routes, SocketIO uses separate session
-    print('Client connected')
     emit('connected', {'data': 'Connected'})
 
 @socketio.on('disconnect')
 def handle_disconnect():
     """Handle client disconnection"""
-    print('Client disconnected')
+    pass
 
 @socketio.on('join_session')
 def handle_join_session(data):

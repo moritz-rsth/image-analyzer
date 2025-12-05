@@ -27,6 +27,37 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             min-height: 100vh;
             color: var(--text-dark);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .content-wrapper {
+            flex: 1;
+        }
+
+        .footer {
+            background-color: white;
+            border-top: 1px solid var(--border-color);
+            padding: 1rem 2rem;
+            box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
+            margin-top: auto;
+        }
+
+        .footer-content {
+            max-width: 1000px;
+            margin: 0 auto;
+            text-align: center;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .footer-content a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        .footer-content a:hover {
+            text-decoration: underline;
         }
 
         .navbar {
@@ -325,13 +356,19 @@
     </style>
 </head>
 <body>
+    <div class="content-wrapper">
     <nav class="navbar">
         <div class="container-fluid d-flex justify-content-between align-items-center">
             <a class="navbar-brand" href="/">
                 <i class="fas fa-camera-retro me-2"></i>
                 Image Analyzer
             </a>
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 align-items-center">
+                {% if session.get('role') == 'user' and quota is not none %}
+                <span class="badge bg-primary" style="font-size: 0.9rem; padding: 0.5rem 0.75rem;">
+                    <i class="fas fa-images me-1"></i>{{ quota }} images remaining
+                </span>
+                {% endif %}
                 {% if session.get('role') == 'admin' %}
                 <a href="/admin" class="btn btn-outline-primary btn-sm">
                     <i class="fas fa-user-shield me-2"></i>Admin Dashboard
@@ -433,6 +470,28 @@
             <div class="step-content">
                 <h4>Download Results</h4>
                 <p>You can download your results as a ZIP file once the analysis is completed.</p>
+                
+                {% if results_history and results_history|length > 0 %}
+                <div style="margin-bottom: 1.5rem;">
+                    <h5 style="margin-bottom: 1rem; color: var(--text-dark); font-weight: 600;">
+                        <i class="fas fa-history me-2" style="color: var(--primary-color);"></i>Recent Results (Last 3 Runs)
+                    </h5>
+                    <div class="list-group">
+                        {% for result in results_history %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center" style="border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 0.5rem; padding: 1rem;">
+                            <div>
+                                <strong style="color: var(--text-dark);">Run {{ loop.index }}</strong>
+                                <br>
+                                <small class="text-muted">{{ result.formatted_date }}</small>
+                            </div>
+                            <a href="/download/{{ result.download_path }}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-download me-1"></i>Download
+                            </a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
                 
                 <div class="alert alert-success" id="download-success" style="display: none;">
                     <i class="fas fa-check-circle me-2"></i>
@@ -831,16 +890,16 @@
                     const downloadLinks = document.getElementById('download-links');
                     downloadLinks.innerHTML = '';
                     
-                                    // Add download link for zip file
-                if (data.download_links && data.download_links.zip) {
-                    const zipLink = document.createElement('a');
-                    zipLink.href = `/download/${data.download_links.zip}`;
-                    zipLink.className = 'btn btn-primary download-link';
-                    zipLink.innerHTML = '<i class="fas fa-file-archive me-2"></i>Download Results (ZIP)';
-                    downloadLinks.appendChild(zipLink);
-                    downloadLinks.style.display = 'block';
-                    document.getElementById('download-placeholder').style.display = 'none';
-                }
+                    // Add download link for zip file
+                    if (data.download_links && data.download_links.zip) {
+                        const zipLink = document.createElement('a');
+                        zipLink.href = `/download/${data.download_links.zip}`;
+                        zipLink.className = 'btn btn-primary download-link';
+                        zipLink.innerHTML = '<i class="fas fa-file-archive me-2"></i>Download Results (ZIP)';
+                        downloadLinks.appendChild(zipLink);
+                        downloadLinks.style.display = 'block';
+                        document.getElementById('download-placeholder').style.display = 'none';
+                    }
                 } else if (data) {
                     showProcessMessage('error', data.message);
                     // Keep button disabled on error
@@ -897,5 +956,12 @@
             }
         }
     </script>
+    </div> <!-- Ende content-wrapper -->
+    
+    <footer class="footer">
+        <div class="footer-content">
+            Contact <a href="mailto:contact.dm@mgt.tum.de">contact.dm@mgt.tum.de</a> for questions referring to the theory of the pipeline and <a href="mailto:moritz.rosenthal@tum.de">moritz.rosenthal@tum.de</a> for technical questions.
+        </div>
+    </footer>
 </body>
 </html> 
