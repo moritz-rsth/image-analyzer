@@ -114,6 +114,15 @@ def verify_user_token(username: str, raw_token: str) -> bool:
     return check_password_hash(row["token_hash"], raw_token)
 
 
+def update_user_limit(username: str, image_limit: int):
+    """Update only the image limit for an existing user (does not change token)."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET image_limit = ? WHERE username = ?", (image_limit, username))
+    conn.commit()
+    conn.close()
+
+
 def get_user_quota(username: str) -> int:
     """Return remaining image quota for user (defaults to 0 if missing)."""
     conn = get_db_connection()
@@ -278,6 +287,11 @@ def admin_create_token():
             return jsonify({'status': 'error', 'message': 'Username and token are required'}), 400
         if image_limit < 0:
             return jsonify({'status': 'error', 'message': 'Image limit must be >= 0'}), 400
+        
+        # Prevent creating users with admin username
+        admin_user = os.getenv('ADMIN_USERNAME', 'admin')
+        if username.lower() == admin_user.lower():
+            return jsonify({'status': 'error', 'message': f'Cannot create user with admin username "{admin_user}"'}), 400
 
         saved_token = upsert_user_token(username, token, image_limit)
         return jsonify({
@@ -297,6 +311,40 @@ def admin_list_users():
     """List users (JSON) for admin dashboard."""
     try:
         return jsonify({'status': 'success', 'users': list_users()})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/admin/update-limit', methods=['POST'])
+@login_required
+@admin_required
+def admin_update_limit():
+    """Update only the image limit for an existing user (does not change token)."""
+    try:
+        data = request.get_json() or {}
+        username = data.get('username')
+        image_limit = int(data.get('image_limit', 0))
+
+        if not username:
+            return jsonify({'status': 'error', 'message': 'Username is required'}), 400
+        if image_limit < 0:
+            return jsonify({'status': 'error', 'message': 'Image limit must be >= 0'}), 400
+        
+        # Check if user exists
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT username FROM users WHERE username = ?", (username,))
+        if not cur.fetchone():
+            conn.close()
+            return jsonify({'status': 'error', 'message': 'User not found'}), 404
+        conn.close()
+
+        update_user_limit(username, image_limit)
+        return jsonify({
+            'status': 'success',
+            'message': f'Image limit updated for user {username}',
+            'image_limit': image_limit
+        })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 

@@ -82,8 +82,11 @@
                 <td class="text-muted small">{{ u.created_at }}</td>
                 <td class="text-end">
                   <div class="btn-group" role="group" aria-label="Actions">
-                    <button class="btn btn-sm btn-outline-primary btn-regenerate" data-username="{{ u.username }}">
-                      Regenerate & Save
+                    <button class="btn btn-sm btn-outline-success btn-save" data-username="{{ u.username }}">
+                      Save
+                    </button>
+                    <button class="btn btn-sm btn-outline-primary btn-renew" data-username="{{ u.username }}">
+                      Renew Token
                     </button>
                     <button class="btn btn-sm btn-outline-danger btn-delete" data-username="{{ u.username }}">
                       Delete
@@ -161,6 +164,11 @@
         showAlert('warning', 'Username and token are required.');
         return;
       }
+      // Prevent creating users with admin username (case-insensitive)
+      if (username.toLowerCase() === 'admin') {
+        showAlert('danger', 'Cannot create user with admin username. Please choose a different username.');
+        return;
+      }
       try {
         const data = await saveUser(username, token, limit);
         showAlert('success', `Saved ${username}. Token: ${data.token}`);
@@ -170,7 +178,30 @@
       }
     });
 
-    document.querySelectorAll('.btn-regenerate').forEach(btn => {
+    document.querySelectorAll('.btn-save').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const row = btn.closest('tr');
+        const username = btn.dataset.username;
+        const limitInput = row.querySelector('.user-limit');
+        const limit = parseInt(limitInput.value || '0', 10);
+        try {
+          const res = await fetch('/admin/update-limit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, image_limit: limit })
+          });
+          const data = await res.json();
+          if (!res.ok || data.status !== 'success') {
+            throw new Error(data.message || 'Failed to update limit');
+          }
+          showAlert('success', `Image limit updated for ${username}`);
+        } catch (err) {
+          showAlert('danger', err.message);
+        }
+      });
+    });
+
+    document.querySelectorAll('.btn-renew').forEach(btn => {
       btn.addEventListener('click', async () => {
         const row = btn.closest('tr');
         const username = btn.dataset.username;
