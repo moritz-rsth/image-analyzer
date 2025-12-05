@@ -92,8 +92,9 @@
 
         .workflow-step-card {
             display: flex;
+            flex-direction: column;
             align-items: flex-start;
-            gap: 2rem;
+            gap: 1.5rem;
             background: white;
             border-radius: 15px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
@@ -108,6 +109,13 @@
             transform: translateY(-5px);
             box-shadow: 0 8px 32px rgba(74, 107, 255, 0.13);
             border-color: var(--primary-color);
+        }
+
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            width: 100%;
         }
 
         .step-icon {
@@ -130,16 +138,16 @@
             position: relative;
         }
 
-        .step-content {
-            flex: 1;
-        }
-
-        .step-content h4 {
-            margin-bottom: 1rem;
+        .step-header h4 {
+            margin: 0;
             color: var(--primary-color);
             font-weight: 700;
             font-size: 1.5rem;
             letter-spacing: -0.5px;
+        }
+
+        .step-content {
+            width: 100%;
         }
 
         .step-content p {
@@ -392,11 +400,13 @@
         
         <div class="workflow-step-card">
             <div class="step-number">1</div>
-            <div class="step-icon">
-                <i class="fas fa-sliders-h"></i>
+            <div class="step-header">
+                <div class="step-icon">
+                    <i class="fas fa-sliders-h"></i>
+                </div>
+                <h4>Configure Features</h4>
             </div>
             <div class="step-content">
-                <h4>Configure Features</h4>
                 <p>Select the features you want to extract from your images and configure the parameters for each feature.</p>
                 <a href="/config-page" class="btn btn-primary">
                     <i class="fas fa-cog"></i>Select & Configure Features
@@ -406,11 +416,13 @@
         
         <div class="workflow-step-card">
             <div class="step-number">2</div>
-            <div class="step-icon">
-                <i class="fas fa-cloud-upload-alt"></i>
+            <div class="step-header">
+                <div class="step-icon">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                </div>
+                <h4>Upload Images</h4>
             </div>
             <div class="step-content">
-                <h4>Upload Images</h4>
                 <p>Upload the images you want to analyze. Supports multiple image formats.
                     <br>
                     If you made a mistake, please refresh the page and start over.
@@ -475,11 +487,13 @@
         
         <div class="workflow-step-card">
             <div class="step-number">3</div>
-            <div class="step-icon">
-                <i class="fas fa-download"></i>
+            <div class="step-header">
+                <div class="step-icon">
+                    <i class="fas fa-download"></i>
+                </div>
+                <h4>Download Results</h4>
             </div>
             <div class="step-content">
-                <h4>Download Results</h4>
                 <p>You can download your results as a ZIP file once the analysis is completed.</p>
                 
                 {% if results_history and results_history|length > 0 %}
