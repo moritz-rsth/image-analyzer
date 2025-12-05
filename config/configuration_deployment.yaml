@@ -1,15 +1,15 @@
 features:
   calculate_aesthetic_scores:
-    active: false
+    active: true
     parameters:
       weight_filename: weights_mobilenet_aesthetic_0.07.hdf5
       weight_url: https://github.com/idealo/image-quality-assessment/blob/master/models/MobileNet/weights_mobilenet_aesthetic_0.07.hdf5?raw=true
   calculate_hue_proportions:
-    active: false
+    active: true
   calculate_image_clarity:
-    active: false
+    active: true
   describe_blip:
-    active: false
+    active: true
     parameters:
       # Local model/processor names (für die lokale Variante, falls genutzt)
       model: Salesforce/blip-image-captioning-base
@@ -36,7 +36,7 @@ features:
     parameters:
       confidence_threshold: 0.9
       # Replicate model ID für Face Detection (MTCNN oder ähnliches)
-      replicate_model_id: None # TODO
+      replicate_model_id: dm_tum/ia_detect_faces
   detect_objects:
     active: false
     parameters:
@@ -50,13 +50,13 @@ features:
       # Replicate model ID für Object Detection (z.B. Florence-2)
       replicate_model_id: lucataco/florence-2-base:c81609117f666d3a86b262447f80d41ac5158a76adb56893301843a23165eaf8
   estimate_noise:
-    active: false
+    active: true
   extract_basic_image_features:
-    active: false
+    active: true
   extract_blur_value:
-    active: false
+    active: true
   get_color_features:
-    active: false
+    active: true
   get_composition_features:
     active: false
   get_figure_ground_relationship_features:
@@ -74,12 +74,12 @@ features:
     active: false
     parameters:
       # Replicate model ID für YOLO11 COCO Detection
-      replicate_model_id: ultralytics/yolo11n:2eb2c7ebcd7fea7f3e64630118d058e1985338e9d505dd8eb9786e6f06704a96
+      replicate_model_id: dm_tum/ia_predict_coco_labels_yolo11
   predict_imagenet_classes_yolo11:
     active: false
     parameters:
       # Replicate model ID für YOLO11 ImageNet Classification
-      replicate_model_id: ultralytics/yolo11n:2eb2c7ebcd7fea7f3e64630118d058e1985338e9d505dd8eb9786e6f06704a96
+      replicate_model_id: dm_tum/ia_predict_imagenet_classes_yolo11
   self_similarity:
     active: false
   visual_complexity:
@@ -95,7 +95,7 @@ general:
   output_dir: ../../outputs/
   output_formats:
     csv: true
-    excel: false
+    excel: true
   summary_stats:
-    active: false
+    active: true
   verbose: false

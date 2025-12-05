@@ -337,13 +337,65 @@ def progress_callback(progress_data, user_session_id):
         # Small sleep to allow the event to be processed and sent immediately
         time.sleep(0.01)
 
-def load_config():
-    with open(DEFAULT_CONFIG_FILE, 'r') as file:
+def get_user_config_path(user_id=None):
+    """
+    Get the path to the user-specific config file.
+    User-specific configs are stored in database/configs/ folder.
+    If user_id is None, tries to get it from session.
+    Returns the user-specific path if user exists, otherwise returns default.
+    """
+    if user_id is None:
+        user_id = session.get('user_id')
+    
+    if user_id:
+        # Store user-specific configs in database/configs/ folder
+        configs_dir = os.path.join(DATABASE_BASE_PATH, 'configs')
+        user_config_file = os.path.join(configs_dir, f'{user_id}.yaml')
+        return user_config_file
+    return DEFAULT_CONFIG_FILE
+
+def load_config(user_id=None):
+    """
+    Load configuration for a user.
+    If user-specific config exists, load it. Otherwise, load default deployment config.
+    
+    :param user_id: Optional user ID. If None, tries to get from session.
+    :return: Configuration dictionary
+    """
+    user_config_path = get_user_config_path(user_id)
+    
+    # Check if user-specific config exists, otherwise use default
+    if user_id and os.path.exists(user_config_path):
+        config_file = user_config_path
+    else:
+        config_file = DEFAULT_CONFIG_FILE
+    
+    with open(config_file, 'r') as file:
         return yaml.safe_load(file)
 
-def save_config(config_data):
-    with open(CURR_CONFIG_FILE, 'w') as file:
-        yaml.dump(config_data, file, default_flow_style=False)
+def save_config(config_data, user_id=None):
+    """
+    Save configuration for a user.
+    Saves to user-specific config file in database/configs/ folder if user_id is provided.
+    
+    :param config_data: Configuration dictionary to save
+    :param user_id: Optional user ID. If None, tries to get from session.
+    """
+    if user_id is None:
+        user_id = session.get('user_id')
+    
+    if user_id:
+        # Save to user-specific config file in database/configs/ folder
+        user_config_file = get_user_config_path(user_id)
+        # Ensure configs directory exists
+        configs_dir = os.path.dirname(user_config_file)
+        os.makedirs(configs_dir, exist_ok=True)
+        with open(user_config_file, 'w') as file:
+            yaml.dump(config_data, file, default_flow_style=False, sort_keys=False)
+    else:
+        # Fallback to current config file if no user_id (shouldn't happen in normal flow)
+        with open(CURR_CONFIG_FILE, 'w') as file:
+            yaml.dump(config_data, file, default_flow_style=False, sort_keys=False)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -496,6 +548,8 @@ def admin_delete_user():
 @app.route('/config', methods=['GET', 'POST'])
 @login_required
 def manage_config():
+    user_id = session.get('user_id')
+    
     if request.method == 'POST':
         try:
             if not request.is_json:
@@ -505,18 +559,17 @@ def manage_config():
             if not config_data:
                 return jsonify({'status': 'error', 'message': 'No configuration data received'}), 400
             
-            # Save the configuration directly without merging
-            with open(CURR_CONFIG_FILE, 'w') as file:
-                yaml.dump(config_data, file, default_flow_style=False, sort_keys=False)
+            # Save the configuration to user-specific file
+            save_config(config_data, user_id)
             
             return jsonify({'status': 'success', 'message': 'Configuration updated successfully'})
         except Exception as e:
             print("Error saving config:", str(e))
             return jsonify({'status': 'error', 'message': str(e)}), 400
     
-    # GET request - return current configuration
+    # GET request - return current configuration (user-specific or default)
     try:
-        config_data = load_config()
+        config_data = load_config(user_id)
         return jsonify(config_data)
     except Exception as e:
         print("Error loading config:", str(e))
@@ -629,8 +682,13 @@ def process_images():
         # Process images in a background thread to allow Socket.IO events to be sent immediately
         def process_images_background():
             try:
+                # Get user-specific config path (falls back to default if not exists)
+                user_config_path = get_user_config_path(user_id)
+                if not os.path.exists(user_config_path):
+                    user_config_path = DEFAULT_CONFIG_FILE
+                
                 # Create a fresh Image Analyzer instance for this batch
-                ia = IA(config_path=CURR_CONFIG_FILE)
+                ia = IA(config_path=user_config_path)
                 ia.input_dir = batch_folder
                 # Set output directory to user's output folder
                 user_output_folder = get_user_folder(user_id, OUTPUT_FOLDER)
@@ -656,9 +714,8 @@ def process_images():
                 zip_filename = f"{run_folder_name}.zip"
                 zip_path = os.path.abspath(os.path.join(user_output_folder, zip_filename))
 
-                # Always use output_formats from configuration.yaml
-                with open(CURR_CONFIG_FILE, 'r') as f:
-                    config = yaml.safe_load(f)
+                # Always use output_formats from user-specific config (or default)
+                config = load_config(user_id)
                 output_formats = config.get('general', {}).get('output_formats', {'excel': True, 'csv': True})
                 
                 # Create ZIP file from files that the pipeline already saved

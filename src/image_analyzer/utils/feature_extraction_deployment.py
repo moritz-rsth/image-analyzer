@@ -613,59 +613,25 @@ def detect_faces(self, df_images):
 
     :param self: IA object
     :param df_images: DataFrame with a column 'filePath'
-    :return: DataFrame with face detection results
+    :return: DataFrame with face detection results matching original function format
     """
-
-    def get_faces_from_replicate(self, path_img):
-        '''
-        Detect faces using Replicate API and return formatted results.
-        '''
-        try:
-            config_params = self.config.get('detect_faces', {}).get('parameters', {})
-            model_id = config_params.get('replicate_model_id', 'lucataco/mtcnn:...')  # TODO: Replace with actual model ID
-            confidence_threshold = config_params.get('confidence_threshold', 0.9)
-            
-            if not model_id or '...' in model_id:
-                raise ValueError("Replicate model ID not configured")
-            
-            image_file = _prepare_image_for_api(path_img)
-            
-            # Call Replicate API
-            output = _call_replicate_model(
-                model_id=model_id,
-                input_data={
-                    "image": image_file,
-                    "threshold": confidence_threshold
-                }
-            )
-            
-            image_file.close()
-            
-            # Format output to match expected structure
-            # Replicate MTCNN typically returns list of detections with boxes, confidence, landmarks
-            faces_dict = {}
-            if output and isinstance(output, list):
-                for i, detection in enumerate(output):
-                    faces_dict[f"face_{i+1}"] = {
-                        "score": detection.get('confidence', detection.get('score', 0.0)),
-                        "facial_area": detection.get('box', detection.get('bbox', [0, 0, 0, 0])),
-                        "landmarks": {
-                            "right_eye": detection.get('landmarks', {}).get('right_eye', [0, 0]),
-                            "left_eye": detection.get('landmarks', {}).get('left_eye', [0, 0]),
-                            "nose": detection.get('landmarks', {}).get('nose', [0, 0]),
-                            "mouth_right": detection.get('landmarks', {}).get('mouth_right', [0, 0]),
-                            "mouth_left": detection.get('landmarks', {}).get('mouth_left', [0, 0]),
-                        }
-                    }
-            
-            return faces_dict
-            
-        except Exception as e:
-            print(f"Error detecting faces via Replicate: {str(e)}")
-            return {}
-
-    # Get confidence threshold from config
-    confidence_threshold = self.config.get('features', {}).get('detect_faces', {}).get('parameters', {}).get('confidence_threshold', 0.9)
+    # Get parameters from config
+    config_params = (
+        self.config
+        .get('features', {})
+        .get('detect_faces', {})
+        .get('parameters', {})
+    )
+    model_id = config_params.get('replicate_model_id', None)
+    confidence_threshold = config_params.get('confidence_threshold', 0.85)
+    
+    if not model_id:
+        error_msg = "Replicate model ID not configured. Please set 'replicate_model_id' in config."
+        print(f"Error: {error_msg}")
+        df_results = pd.DataFrame()
+        df_results['filePath'] = df_images['filePath']
+        df_results['error_detect_faces'] = error_msg
+        return df_results
     
     # Initialize results DataFrame
     df_results = pd.DataFrame()
@@ -679,46 +645,79 @@ def detect_faces(self, df_images):
     
     for idx, img_path in enumerate(tqdm(df_images['filePath'], desc="Face detection via Replicate")):
         try:
-            img = cv2.imread(img_path)
-            if img is None:
-                raise ValueError(f"Could not read image: {img_path}")
-            height, width = img.shape[:2]
+            # Check if file exists
+            if not os.path.exists(img_path):
+                if self.verbose: print(f"Warning: File not found: {img_path}")
+                face_counts.append(0)
+                face_scores.append(None)
+                face_areas_abs.append(0)
+                face_areas_rel.append(0)
+                continue
+            
+            # Prepare image for API
+            image_file = None
+            try:
+                image_file = _prepare_image_for_api(img_path)
+            except Exception as e:
+                if self.verbose: print(f"Warning: Failed to load image: {img_path}")
+                face_counts.append(0)
+                face_scores.append(None)
+                face_areas_abs.append(0)
+                face_areas_rel.append(0)
+                continue
+            
+            # Call Replicate API
+            try:
+                output = _call_replicate_model(
+                    model_id=model_id,
+                    input_data={
+                        "image": image_file,
+                        "confidence_threshold": confidence_threshold
+                    }
+                )
+                
+                if image_file:
+                    image_file.close()
+                
+                # Parse JSON output from Replicate
+                # Output format: {"face_count": int, "face_confidence_avg": float, 
+                #                 "face_area_total_abs": int, "face_area_total_rel": float, "faces": [...]}
+                if isinstance(output, str):
+                    result = json.loads(output)
+                else:
+                    result = output
+                
+                # Extract results (matching original function column names)
+                face_counts.append(result.get('face_count', 0))
+                face_scores.append(result.get('face_confidence_avg'))
+                face_areas_abs.append(result.get('face_area_total_abs', 0))
+                face_areas_rel.append(result.get('face_area_total_rel', 0.0))
+                
+            except Exception as e:
+                error = f"Replicate API error: {str(e)}"
+                print(f"Error detecting faces for {img_path}: {error}")
+                face_counts.append(0)
+                face_scores.append(None)
+                face_areas_abs.append(0)
+                face_areas_rel.append(0)
+                if image_file:
+                    image_file.close()
+                continue
+                
         except Exception as e:
-            print(f"Error reading image {img_path}: {e}")
+            error = f"Error processing {img_path}: {str(e)}"
+            print(error)
             face_counts.append(0)
             face_scores.append(None)
-            face_areas_abs.append(None)
-            face_areas_rel.append(None)
+            face_areas_abs.append(0)
+            face_areas_rel.append(0)
             continue
-            
-        # Detect faces via Replicate
-        faces = get_faces_from_replicate(self, img_path)
-        
-        if faces:
-            # Count faces
-            face_counts.append(len(faces))
-            
-            # Calculate average confidence score
-            scores = [face['score'] for face in faces.values()]
-            face_scores.append(sum(scores) / len(scores))
-            
-            # Calculate total face area
-            areas_abs = [(face['facial_area'][2] * face['facial_area'][3]) for face in faces.values()]
-            face_areas_abs.append(sum(areas_abs))
-
-            # Calculate relative face area
-            areas_rel = [(face['facial_area'][2] * face['facial_area'][3] / (height * width)) for face in faces.values()]
-            face_areas_rel.append(sum(areas_rel))
-        else:
-            face_counts.append(0)
-            face_scores.append(None)
-            face_areas_abs.append(None)
-            face_areas_rel.append(None)
     
-    df_results['faceCount'] = face_counts
-    df_results['faceScore'] = face_scores
-    df_results['faceAreaAbs'] = face_areas_abs
-    df_results['faceAreaRel'] = face_areas_rel
+    # Add results to DataFrame (matching original function column names)
+    df_results['face_count'] = face_counts
+    df_results['face_confidence_avg'] = face_scores
+    df_results['face_area_total_abs'] = face_areas_abs
+    df_results['face_area_total_rel'] = [min(1, area) if area is not None else None for area in face_areas_rel]
     
     return df_results
 
@@ -1661,11 +1660,16 @@ def predict_coco_labels_yolo11(self, df_images):
 
                 # Call Replicate API
                 try:
-                    # Build input data with required and optional parameters
+                    # Build input data with optional parameters
                     input_data = {
-                        "image": image_file,
-                        "return_json": True
+                        "image": image_file
                     }
+                    
+                    # Add optional parameters if configured
+                    confidence_threshold = config_params.get('confidence_threshold', 0.25)
+                    iou_threshold = config_params.get('iou_threshold', 0.45)
+                    input_data["confidence_threshold"] = confidence_threshold
+                    input_data["iou_threshold"] = iou_threshold
                         
                     output = _call_replicate_model(
                         model_id=model_id,
@@ -1674,41 +1678,21 @@ def predict_coco_labels_yolo11(self, df_images):
                     
                     image_file.close()
                     
-                    # Parse Replicate output - Ultralytics YOLO11 returns JSON string
-                    # Format: [{"name": "person", "class": 0, "confidence": 0.84, "box": {...}}, ...]
-                    detections = []
+                    # Parse Replicate output - returns JSON string
+                    # Format: {"detections": [...], "class_probabilities": {"coco_person": 0.95, ...}, "detection_count": int}
+                    if isinstance(output, str):
+                        result = json.loads(output)
+                    else:
+                        result = output
                     
-                    # Handle JSON string output
-                    try:
-                        detections = json.loads(output)
-                    except json.JSONDecodeError:
-                        print(f"Warning: Failed to parse JSON output for {image_path}")
-                        continue
+                    # Use class_probabilities dict which already has coco_* keys
+                    class_probabilities = result.get('class_probabilities', {})
                     
-                    # Process detections (same logic as original function)
-                    for detection in detections:
-                        if not isinstance(detection, dict):
-                            continue
-                        
-                        # Get class: prefer direct class index, fallback to name
-                        class_idx = None
-                        class_id = detection.get('class')
-                        class_name = detection.get('name', '')
-                        confidence = float(detection.get('confidence', 0.0))
-                        
-                        # If class is an integer (COCO class ID), use it directly
-                        if isinstance(class_id, int) and 0 <= class_id < len(classes):
-                            class_idx = class_id
-                        elif class_name:
-                            # Otherwise, match by name (case-insensitive)
-                            for i, coco_class in enumerate(classes):
-                                if coco_class.replace('coco_', '').lower() == class_name.lower():
-                                    class_idx = i
-                                    break
-                        
-                        # Update confidence if higher than current (same as original)
-                        if class_idx is not None and confidence > df.at[idx, classes[class_idx]]:
-                            df.at[idx, classes[class_idx]] = confidence
+                    # Update DataFrame with class probabilities (same logic as original)
+                    for class_name, confidence in class_probabilities.items():
+                        if class_name in classes:
+                            if confidence > df.at[idx, class_name]:
+                                df.at[idx, class_name] = confidence
 
                 except Exception as e:
                     error = f"Replicate API error: {str(e)}"
@@ -1783,11 +1767,14 @@ def predict_imagenet_classes_yolo11(self, df_images):
 
                 # Call Replicate API
                 try:
-                    # Build input data with required parameters
+                    # Build input data with optional parameters
                     input_data = {
-                        "image": image_file,
-                        "return_json": True
+                        "image": image_file
                     }
+                    
+                    # Add optional top_k parameter if configured
+                    top_k = config_params.get('top_k', 10)
+                    input_data["top_k"] = top_k
                     
                     output = _call_replicate_model(
                         model_id=model_id,
@@ -1796,36 +1783,23 @@ def predict_imagenet_classes_yolo11(self, df_images):
                     
                     image_file.close()
                     
-                    # Parse Replicate output - Ultralytics YOLO11 returns JSON string
-                    # Format: [{"name": "person", "class": 0, "confidence": 0.84, "box": {...}}, ...]
-                    detections = []
+                    # Parse Replicate output - returns JSON string
+                    # Format: {"predictions": [...], "all_classes": {"imagenet_golden_retriever": 0.85, ...}}
+                    if isinstance(output, str):
+                        result = json.loads(output)
+                    else:
+                        result = output
                     
-                    # Handle JSON string output
-                    try:
-                        detections = json.loads(output)
-                    except json.JSONDecodeError:
-                        print(f"Warning: Failed to parse JSON output for {image_path}")
-                        continue
+                    # Use all_classes dict which already has imagenet_* keys with probabilities
+                    all_classes = result.get('all_classes', {})
                     
-                    # Process detections - map detected classes to ImageNet format
-                    # Similar to original: use confidence as probability, but only for detected classes
-                    for detection in detections:
-                        if not isinstance(detection, dict):
-                            continue
-                        
-                        # Get class name and confidence
-                        class_name = detection.get('name', '')
-                        confidence = float(detection.get('confidence', 0.0))
-                        
-                        # Use class name to create ImageNet column (matching original format)
-                        if class_name:
-                            column_name = f"imagenet_{class_name}"
-                            # Initialize column if not exists (same pattern as original)
-                            if column_name not in all_probs:
-                                all_probs[column_name] = [0.0] * len(df_images)
-                            # Store probability (use confidence as probability, keep maximum if multiple detections)
-                            if confidence > all_probs[column_name][idx]:
-                                all_probs[column_name][idx] = confidence
+                    # Update all_probs dictionary (same pattern as original function)
+                    for column_name, probability in all_classes.items():
+                        # Initialize column if not exists
+                        if column_name not in all_probs:
+                            all_probs[column_name] = [0.0] * len(df_images)
+                        # Store probability
+                        all_probs[column_name][idx] = float(probability)
 
                 except Exception as e:
                     error = f"Replicate API error: {str(e)}"

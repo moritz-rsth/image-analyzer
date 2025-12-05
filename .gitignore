@@ -12,6 +12,7 @@ build/
 develop-eggs/
 dist/
 database/
+replicate_models/
 downloads/
 eggs/
 .eggs/
