@@ -207,12 +207,15 @@ class IA:
             if df_logs.at[idx, 'active']:
                 active_functions.append(func_name)
 
+        # Avoid division by zero if no active functions
+        num_active = len(active_functions) if len(active_functions) > 0 else 1
+        
         if progress_callback:
             progress_callback({
                 'percentage': 0.0,
                 'current_function': 'Initializing',
                 'status': 'starting',
-                'message': f'Step 0/{len(active_functions)}: Starting processing of {len(df_images)} images'
+                'message': f'Step 0/{num_active}: Starting processing of {len(df_images)} images'
             })
 
         print(f"### Starting batch of n={len(df_images)} images ###")
@@ -229,14 +232,14 @@ class IA:
             if row['active']:
                 if progress_callback:
                     progress_callback({
-                        'percentage': (processed_count+1) / len(active_functions),
+                        'percentage': (processed_count+1) / num_active if num_active > 0 else 0.0,
                         'current_function': func_name,
                         'status': 'processing',
-                        'message': f'Step {processed_count+1}/{len(active_functions)}: {func_name}'
+                        'message': f'Step {processed_count+1}/{num_active}: {func_name}'
                     })
                 
                 print("--------------------------------")
-                print(f"Step {processed_count+1}/{len(active_functions)}: {func_name}()")
+                print(f"Step {processed_count+1}/{num_active}: {func_name}()")
 
                 tic = time.perf_counter()
                 
@@ -266,10 +269,10 @@ class IA:
                 
                 if progress_callback:
                     progress_callback({
-                        'percentage': processed_count / len(active_functions),
+                        'percentage': processed_count / num_active if num_active > 0 else 1.0,
                         'current_function': func_name,
                         'status': 'completed',
-                        'message': f'Step {processed_count}/{len(active_functions)}: Completed {func_name} in {processing_time:.2f} seconds'
+                        'message': f'Step {processed_count}/{num_active}: Completed {func_name} in {processing_time:.2f} seconds'
                     })
             # Skip inactive functions silently - no progress update needed
 
@@ -278,7 +281,7 @@ class IA:
                 'percentage': 1.0,
                 'current_function': 'Finalizing',
                 'status': 'finalizing',
-                'message': f'Step {len(active_functions)}/{len(active_functions)}: Saving final results and generating output files'
+                'message': f'Step {num_active}/{num_active}: Saving final results and generating output files'
             })
 
         print(f"### Finished batch of n={len(df_images)} images ###")
