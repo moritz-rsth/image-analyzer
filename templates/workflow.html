@@ -569,7 +569,49 @@
         });
 
         socket.on('joined_session', function(data) {
-            console.log('Joined session:', data.session_id);
+            // Session joined successfully, processing can start
+        });
+
+        socket.on('processing_complete', function(data) {
+            const processButton = document.getElementById('processButton');
+            const progressBar = document.querySelector('.progress');
+            const progressText = document.getElementById('progress-text');
+            
+            if (data.status === 'success') {
+                showProcessMessage('success', data.message);
+                // Clear previous download links
+                const downloadLinks = document.getElementById('download-links');
+                downloadLinks.innerHTML = '';
+                
+                // Add download link for zip file
+                if (data.download_links && data.download_links.zip) {
+                    const zipLink = document.createElement('a');
+                    zipLink.href = `/download/${data.download_links.zip}`;
+                    zipLink.className = 'btn btn-primary download-link';
+                    zipLink.innerHTML = '<i class="fas fa-file-archive me-2"></i>Download Results (ZIP)';
+                    downloadLinks.appendChild(zipLink);
+                    downloadLinks.style.display = 'block';
+                    document.getElementById('download-placeholder').style.display = 'none';
+                }
+                
+                processButton.disabled = true;
+                processButton.innerHTML = '<i class="fas fa-check me-2"></i>Processing Complete';
+                progressBar.style.display = 'none';
+                if (progressText) {
+                    progressText.style.display = 'none';
+                }
+            } else {
+                showProcessMessage('error', data.message);
+                processButton.disabled = true;
+                processButton.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Processing Failed';
+                progressBar.style.display = 'none';
+                if (progressText) {
+                    progressText.style.display = 'none';
+                }
+            }
+            
+            // Reset session ID
+            currentSessionId = null;
         });
 
         function updateProgress(data) {
@@ -593,17 +635,10 @@
             progressContainer.style.display = 'block';
             
             // Update button state based on status
-            if (data.status === 'starting' || data.status === 'processing' || data.status === 'finalizing') {
+            // Keep progress bar visible during all processing steps
+            if (data.status === 'starting' || data.status === 'processing' || data.status === 'completed' || data.status === 'finalizing') {
                 processButton.disabled = true;
                 processButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
-            } else if (data.status === 'completed') {
-                processButton.disabled = true;
-                processButton.innerHTML = '<i class="fas fa-check me-2"></i>Processing Complete';
-                progressContainer.style.display = 'none';
-                progressText.style.display = 'none';
-            } else if (data.status === 'skipped') {
-                // Keep the progress bar visible but don't change button state
-                console.log('Skipped function:', data.current_function);
             }
         }
 
@@ -852,12 +887,6 @@
                 return;
             }
 
-            // Generate a unique session ID for this processing job
-            currentSessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-            
-            // Join the WebSocket room for this session
-            socket.emit('join_session', { session_id: currentSessionId });
-
             const processButton = document.getElementById('processButton');
             const progressBar = document.querySelector('.progress');
             const progressBarInner = document.querySelector('.progress-bar');
@@ -872,11 +901,40 @@
             document.getElementById('process-success').style.display = 'none';
             document.getElementById('process-error').style.display = 'none';
 
-            // Get the current configuration for output formats
-            fetch('/config')
-            .then(response => {
-                if (handleAuthError(response)) return null;
-                return response.json();
+            // Generate a unique session ID for this processing job
+            currentSessionId = 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            
+            // Wait for room join confirmation before starting processing
+            const sessionJoinedPromise = new Promise((resolve, reject) => {
+                // Set up one-time listener for joined_session confirmation
+                const onJoinedSession = (data) => {
+                    if (data.session_id === currentSessionId) {
+                        socket.off('joined_session', onJoinedSession);
+                        resolve();
+                    }
+                };
+                
+                socket.on('joined_session', onJoinedSession);
+                
+                // Timeout after 5 seconds if no confirmation
+                setTimeout(() => {
+                    socket.off('joined_session', onJoinedSession);
+                    reject(new Error('Timeout waiting for session join confirmation'));
+                }, 5000);
+            });
+            
+            // Join the WebSocket room for this session
+            socket.emit('join_session', { session_id: currentSessionId });
+            
+            // Wait for confirmation, then proceed with processing
+            sessionJoinedPromise
+            .then(() => {
+                // Get the current configuration for output formats
+                return fetch('/config')
+                .then(response => {
+                    if (handleAuthError(response)) return null;
+                    return response.json();
+                });
             })
             .then(config => {
                 if (!config) return;
@@ -906,6 +964,14 @@
                     })
                 });
             })
+            .catch(error => {
+                // Handle session join timeout or other errors
+                console.error('Error during session setup:', error);
+                showProcessMessage('error', 'Failed to establish connection. Please try again.');
+                processButton.disabled = false;
+                processButton.innerHTML = '<i class="fas fa-cogs me-2"></i>Process Images';
+                progressBar.style.display = 'none';
+            })
             .then(response => {
                 if (!response) return null;
                 if (handleAuthError(response)) return null;
@@ -914,30 +980,16 @@
             .then(data => {
                 if (!data) return;
                 
-                if (data && data.status === 'success') {
-                    showProcessMessage('success', data.message);
-                    // Clear previous download links
-                    const downloadLinks = document.getElementById('download-links');
-                    downloadLinks.innerHTML = '';
-                    
-                    // Add download link for zip file
-                    if (data.download_links && data.download_links.zip) {
-                        const zipLink = document.createElement('a');
-                        zipLink.href = `/download/${data.download_links.zip}`;
-                        zipLink.className = 'btn btn-primary download-link';
-                        zipLink.innerHTML = '<i class="fas fa-file-archive me-2"></i>Download Results (ZIP)';
-                        downloadLinks.appendChild(zipLink);
-                        downloadLinks.style.display = 'block';
-                        document.getElementById('download-placeholder').style.display = 'none';
-                    }
-                } else if (data) {
+                // If status is 'processing', the actual completion will come via WebSocket
+                if (data.status === 'processing') {
+                    // Don't reset anything here - wait for processing_complete event
+                } else if (data.status === 'error') {
                     showProcessMessage('error', data.message);
-                    // Keep button disabled on error
                     processButton.disabled = true;
                     processButton.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Processing Failed';
+                    progressBar.style.display = 'none';
+                    currentSessionId = null;
                 }
-                progressBar.style.display = 'none';
-                currentSessionId = null;
             })
             .catch(error => {
                 showProcessMessage('error', 'Error processing images: ' + error);

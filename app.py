@@ -36,7 +36,7 @@ else:
     # Local development: defaults to localhost
     os.environ['APP_BASE_URL'] = f"http://localhost:{PORT}"
 
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'outputs'
@@ -333,7 +333,9 @@ def progress_callback(progress_data, user_session_id):
     """Callback function to emit progress updates via WebSocket"""
     if user_session_id in user_processing:
         room_id = user_processing[user_session_id]
-        socketio.emit('progress_update', progress_data, room=room_id)
+        socketio.emit('progress_update', progress_data, room=room_id, namespace='/')
+        # Small sleep to allow the event to be processed and sent immediately
+        time.sleep(0.01)
 
 def load_config():
     with open(DEFAULT_CONFIG_FILE, 'r') as file:
@@ -620,104 +622,126 @@ def process_images():
                 return jsonify({'status': 'error', 'message': f'Quota exceeded. Remaining: {remaining} images'}), 403
         
         # Store user's processing session for progress updates
+        # The client should have already joined the room via join_session event
+        # before calling this endpoint, so the room exists and is ready for progress updates
         user_processing[user_id] = socketio_session_id
         
-        # Create a fresh Image Analyzer instance for this batch
-        ia = IA(config_path=CURR_CONFIG_FILE)
-        ia.input_dir = batch_folder
-        # Set output directory to user's output folder
-        user_output_folder = get_user_folder(user_id, OUTPUT_FOLDER)
-        ia.output_dir = user_output_folder
-        # Reset the pipeline for clean state (this will generate a new timestamp)
-        ia.reset_pipeline()
-        
-        # Process the images with progress callback
-        def user_progress_callback(progress_data):
-            progress_callback(progress_data, user_id)
-        
-        results, logs = ia.process_batch(progress_callback=user_progress_callback)
-        
-        # Get the timestamp from the pipeline (already created in reset_pipeline)
-        timestamp = ia.timestamp
-        run_folder_name = f"Image-Analyzer_run_{timestamp}"
-        
-        # The pipeline creates files in ia.output_dir (which includes the run folder)
-        # Use that directory as the source for the ZIP
-        pipeline_output_dir = ia.output_dir
-        
-        # Create zip file with selected output formats in user's output folder
-        zip_filename = f"{run_folder_name}.zip"
-        zip_path = os.path.abspath(os.path.join(user_output_folder, zip_filename))
+        # Process images in a background thread to allow Socket.IO events to be sent immediately
+        def process_images_background():
+            try:
+                # Create a fresh Image Analyzer instance for this batch
+                ia = IA(config_path=CURR_CONFIG_FILE)
+                ia.input_dir = batch_folder
+                # Set output directory to user's output folder
+                user_output_folder = get_user_folder(user_id, OUTPUT_FOLDER)
+                ia.output_dir = user_output_folder
+                # Reset the pipeline for clean state (this will generate a new timestamp)
+                ia.reset_pipeline()
+                
+                # Process the images with progress callback
+                def user_progress_callback(progress_data):
+                    progress_callback(progress_data, user_id)
+                
+                results, logs = ia.process_batch(progress_callback=user_progress_callback)
+                
+                # Get the timestamp from the pipeline (already created in reset_pipeline)
+                timestamp = ia.timestamp
+                run_folder_name = f"Image-Analyzer_run_{timestamp}"
+                
+                # The pipeline creates files in ia.output_dir (which includes the run folder)
+                # Use that directory as the source for the ZIP
+                pipeline_output_dir = ia.output_dir
+                
+                # Create zip file with selected output formats in user's output folder
+                zip_filename = f"{run_folder_name}.zip"
+                zip_path = os.path.abspath(os.path.join(user_output_folder, zip_filename))
 
-        # Always use output_formats from configuration.yaml
-        with open(CURR_CONFIG_FILE, 'r') as f:
-            config = yaml.safe_load(f)
-        output_formats = config.get('general', {}).get('output_formats', {'excel': True, 'csv': True})
-        
-        # Create ZIP file from files that the pipeline already saved
-        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            # Add results files from pipeline output directory
-            if output_formats.get('excel', True):
-                excel_path = os.path.join(pipeline_output_dir, 'results.xlsx')
-                if os.path.exists(excel_path):
-                    zipf.write(excel_path, f"{run_folder_name}/results.xlsx")
+                # Always use output_formats from configuration.yaml
+                with open(CURR_CONFIG_FILE, 'r') as f:
+                    config = yaml.safe_load(f)
+                output_formats = config.get('general', {}).get('output_formats', {'excel': True, 'csv': True})
                 
-            if output_formats.get('csv', True):
-                csv_path = os.path.join(pipeline_output_dir, 'results.csv')
-                if os.path.exists(csv_path):
-                    zipf.write(csv_path, f"{run_folder_name}/results.csv")
-            
-            # Add logs if enabled
-            if config.get('general', {}).get('logs', {}).get('active', False):
-                logs_csv_path = os.path.join(pipeline_output_dir, 'logs.csv')
-                if os.path.exists(logs_csv_path):
-                    zipf.write(logs_csv_path, f"{run_folder_name}/logs.csv")
+                # Create ZIP file from files that the pipeline already saved
+                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    # Add results files from pipeline output directory
+                    if output_formats.get('excel', True):
+                        excel_path = os.path.join(pipeline_output_dir, 'results.xlsx')
+                        if os.path.exists(excel_path):
+                            zipf.write(excel_path, f"{run_folder_name}/results.xlsx")
+                        
+                    if output_formats.get('csv', True):
+                        csv_path = os.path.join(pipeline_output_dir, 'results.csv')
+                        if os.path.exists(csv_path):
+                            zipf.write(csv_path, f"{run_folder_name}/results.csv")
+                    
+                    # Add logs if enabled
+                    if config.get('general', {}).get('logs', {}).get('active', False):
+                        logs_csv_path = os.path.join(pipeline_output_dir, 'logs.csv')
+                        if os.path.exists(logs_csv_path):
+                            zipf.write(logs_csv_path, f"{run_folder_name}/logs.csv")
+                        
+                        logs_xlsx_path = os.path.join(pipeline_output_dir, 'logs.xlsx')
+                        if os.path.exists(logs_xlsx_path):
+                            zipf.write(logs_xlsx_path, f"{run_folder_name}/logs.xlsx")
+                    
+                    # Add summary stats if enabled
+                    if config.get('general', {}).get('summary_stats', {}).get('active', False):
+                        summary_stats_csv_path = os.path.join(pipeline_output_dir, 'summary_statistics.csv')
+                        if os.path.exists(summary_stats_csv_path):
+                            zipf.write(summary_stats_csv_path, f"{run_folder_name}/summary_statistics.csv")
+                        
+                        summary_stats_xlsx_path = os.path.join(pipeline_output_dir, 'summary_statistics.xlsx')
+                        if os.path.exists(summary_stats_xlsx_path):
+                            zipf.write(summary_stats_xlsx_path, f"{run_folder_name}/summary_statistics.xlsx")
+                    
+                    # Add configuration file used for this run (pipeline already saved it)
+                    config_path = os.path.join(pipeline_output_dir, 'configuration.yaml')
+                    if os.path.exists(config_path):
+                        zipf.write(config_path, f"{run_folder_name}/configuration.yaml")
+                        print(f"### Configuration file added to ZIP from: {config_path} ###")
                 
-                logs_xlsx_path = os.path.join(pipeline_output_dir, 'logs.xlsx')
-                if os.path.exists(logs_xlsx_path):
-                    zipf.write(logs_xlsx_path, f"{run_folder_name}/logs.xlsx")
-            
-            # Add summary stats if enabled
-            if config.get('general', {}).get('summary_stats', {}).get('active', False):
-                summary_stats_csv_path = os.path.join(pipeline_output_dir, 'summary_statistics.csv')
-                if os.path.exists(summary_stats_csv_path):
-                    zipf.write(summary_stats_csv_path, f"{run_folder_name}/summary_statistics.csv")
+                # Cleanup: Delete uploaded images after successful processing
+                try:
+                    delete_batch_folder(batch_folder)
+                except Exception as e:
+                    print(f"Warning: Could not delete batch folder: {e}")
                 
-                summary_stats_xlsx_path = os.path.join(pipeline_output_dir, 'summary_statistics.xlsx')
-                if os.path.exists(summary_stats_xlsx_path):
-                    zipf.write(summary_stats_xlsx_path, f"{run_folder_name}/summary_statistics.xlsx")
-            
-            # Add configuration file used for this run (pipeline already saved it)
-            config_path = os.path.join(pipeline_output_dir, 'configuration.yaml')
-            if os.path.exists(config_path):
-                zipf.write(config_path, f"{run_folder_name}/configuration.yaml")
-                print(f"### Configuration file added to ZIP from: {config_path} ###")
+                # Cleanup: Keep only last 3 results per user
+                try:
+                    cleanup_old_results(user_id, keep_count=3)
+                except Exception as e:
+                    print(f"Warning: Could not cleanup old results: {e}")
+                
+                # Send completion notification
+                socketio.emit('processing_complete', {
+                    'status': 'success',
+                    'message': 'Images processed successfully',
+                    'download_links': {'zip': f"{user_id}/{zip_filename}"}
+                }, room=socketio_session_id)
+                
+            except Exception as e:
+                print(f"Error in background processing: {e}")
+                socketio.emit('processing_complete', {
+                    'status': 'error',
+                    'message': str(e)
+                }, room=socketio_session_id)
+            finally:
+                # Clean up user_processing entry
+                if user_id in user_processing:
+                    del user_processing[user_id]
         
-        # Cleanup: Delete uploaded images after successful processing
-        try:
-            delete_batch_folder(batch_folder)
-        except Exception as e:
-            print(f"Warning: Could not delete batch folder: {e}")
+        # Start processing in background thread
+        socketio.start_background_task(process_images_background)
         
-        # Cleanup: Keep only last 3 results per user
-        try:
-            cleanup_old_results(user_id, keep_count=3)
-        except Exception as e:
-            print(f"Warning: Could not cleanup old results: {e}")
-        
+        # Return immediately to client
         return jsonify({
-            'status': 'success',
-            'message': 'Images processed successfully',
-            'download_links': {'zip': f"{user_id}/{zip_filename}"}
+            'status': 'processing',
+            'message': 'Processing started. Progress updates will be sent via WebSocket.'
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
-    finally:
-        # Always clean up session and resources
-        if user_id in user_processing:
-            del user_processing[user_id]
-        if 'ia' in locals():
-            del ia
+    # Note: user_processing cleanup is handled in the background thread's finally block
+    # We don't clean it up here because the background thread is still running
 
 @app.route('/download/<path:filename>')
 @login_required

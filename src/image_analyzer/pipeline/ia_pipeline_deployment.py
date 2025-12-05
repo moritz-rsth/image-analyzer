@@ -212,7 +212,7 @@ class IA:
                 'percentage': 0.0,
                 'current_function': 'Initializing',
                 'status': 'starting',
-                'message': f'Starting processing of {len(df_images)} images in {len(active_functions)} steps'
+                'message': f'Step 0/{len(active_functions)}: Starting processing of {len(df_images)} images'
             })
 
         print(f"### Starting batch of n={len(df_images)} images ###")
@@ -266,26 +266,19 @@ class IA:
                 
                 if progress_callback:
                     progress_callback({
-                        'percentage': (processed_count+1) / len(active_functions),
+                        'percentage': processed_count / len(active_functions),
                         'current_function': func_name,
                         'status': 'completed',
-                        'message': f'Completed {func_name} in {processing_time:.2f} seconds'
+                        'message': f'Step {processed_count}/{len(active_functions)}: Completed {func_name} in {processing_time:.2f} seconds'
                     })
-            else:
-                if progress_callback:
-                    progress_callback({
-                        'percentage': (processed_count+1) / len(active_functions),
-                        'current_function': func_name,
-                        'status': 'skipped',
-                        'message': f'Skipping {func_name} (disabled in configuration)'
-                    })
+            # Skip inactive functions silently - no progress update needed
 
         if progress_callback:
             progress_callback({
                 'percentage': 1.0,
                 'current_function': 'Finalizing',
                 'status': 'finalizing',
-                'message': 'Saving final results and generating output files'
+                'message': f'Step {len(active_functions)}/{len(active_functions)}: Saving final results and generating output files'
             })
 
         print(f"### Finished batch of n={len(df_images)} images ###")
