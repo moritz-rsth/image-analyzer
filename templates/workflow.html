@@ -539,9 +539,7 @@
                             {% for result in results_history %}
                             <div class="list-group-item d-flex justify-content-between align-items-center" style="border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 0.5rem; padding: 1rem;">
                                 <div>
-                                    <strong style="color: var(--text-dark);">Run {{ loop.index }}</strong>
-                                    <br>
-                                    <small class="text-muted">{{ result.formatted_date }}</small>
+                                    <strong style="color: var(--text-dark);">{{ result.formatted_date }}</strong>
                                 </div>
                                 <a href="/download/{{ result.download_path }}" class="btn btn-sm btn-primary">
                                     <i class="fas fa-download me-1"></i>Download
