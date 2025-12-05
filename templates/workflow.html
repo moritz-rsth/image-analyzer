@@ -247,6 +247,12 @@
             color: var(--danger-color);
         }
 
+        .alert-info {
+            background-color: rgba(13, 202, 240, 0.1);
+            color: #0dcaf0;
+            border-left: 3px solid #0dcaf0;
+        }
+
         .progress {
             height: 4px;
             background-color: #e9ecef;
@@ -449,6 +455,11 @@
                 </div>
                 <div id="progress-text" class="text-muted mt-2" style="display: none; font-size: 0.9rem;">
                     <!-- Progress text will be updated here -->
+                </div>
+
+                <div class="alert alert-info" id="process-disclaimer" style="margin-top: 1rem;">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Note:</strong> All processed images will be deleted once analyzed.
                 </div>
 
                 <div class="alert alert-success" id="process-success" style="display: none; margin-top: 1rem;">
@@ -842,6 +853,10 @@
             progressBar.style.display = 'block';
             processButton.disabled = true;
             processButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+            
+            // Hide previous messages
+            document.getElementById('process-success').style.display = 'none';
+            document.getElementById('process-error').style.display = 'none';
 
             // Get the current configuration for output formats
             fetch('/config')
@@ -884,6 +899,7 @@
             })
             .then(data => {
                 if (!data) return;
+                
                 if (data && data.status === 'success') {
                     showProcessMessage('success', data.message);
                     // Clear previous download links
