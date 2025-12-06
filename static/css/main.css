@@ -1,0 +1,775 @@
+/* ============================================
+   CSS Variables - Light Mode (default)
+   ============================================ */
+:root {
+    --primary-color: #4a6bff;
+    --primary-light: #6b8cff;
+    --primary-dark: #3a5bef;
+    --secondary-color: #f8f9fa;
+    --accent-color: #ff6b6b;
+    --success-color: #28a745;
+    --danger-color: #dc3545;
+    --text-dark: #2c3e50;
+    --text-muted: #6c757d;
+    --border-color: #e9ecef;
+    --bg-color: #f5f7ff;
+    --card-bg: white;
+    --navbar-bg: white;
+    --shadow-light: rgba(74, 107, 255, 0.08);
+    --shadow-medium: rgba(74, 107, 255, 0.15);
+    --shadow-dark: rgba(0, 0, 0, 0.1);
+}
+
+/* ============================================
+   CSS Variables - Dark Mode
+   ============================================ */
+[data-theme="dark"] {
+    --primary-color: #6b8cff;
+    --primary-light: #8baaff;
+    --primary-dark: #5a7bff;
+    --secondary-color: #2a2a3e;
+    --accent-color: #ff7b7b;
+    --success-color: #4ade80;
+    --danger-color: #f87171;
+    --text-dark: #e0e0e0;
+    --text-muted: #a0a0a0;
+    --border-color: #3a3a4e;
+    --bg-color: #1a1a2e;
+    --card-bg: #16213e;
+    --navbar-bg: #16213e;
+    --shadow-light: rgba(107, 140, 255, 0.1);
+    --shadow-medium: rgba(107, 140, 255, 0.2);
+    --shadow-dark: rgba(0, 0, 0, 0.3);
+}
+
+/* ============================================
+   Base Styles
+   ============================================ */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-color);
+    min-height: 100vh;
+    color: var(--text-dark);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ============================================
+   Navbar Styles
+   ============================================ */
+.navbar {
+    background-color: var(--navbar-bg);
+    box-shadow: 0 2px 4px var(--shadow-dark);
+    padding: 1rem 2rem;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.navbar-brand {
+    font-weight: 700;
+    color: var(--primary-color) !important;
+    font-size: 1.4rem;
+    transition: color 0.3s ease;
+}
+
+/* Theme toggle button - matches Bootstrap btn-outline-secondary style */
+.theme-toggle {
+    /* Inherit Bootstrap button styles */
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+}
+
+.theme-toggle i {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.theme-toggle span {
+    font-size: 0.875rem;
+}
+
+/* ============================================
+   Container Styles
+   ============================================ */
+.main-container {
+    flex: 1;
+    padding: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.workflow-container {
+    max-width: 1000px;
+    margin: 3rem auto;
+    background: var(--card-bg);
+    border-radius: 15px;
+    box-shadow: 0 4px 6px var(--shadow-dark);
+    padding: 3rem 2.5rem;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* ============================================
+   Card Styles
+   ============================================ */
+.card {
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 4px 6px var(--shadow-dark);
+    background: var(--card-bg);
+    transition: transform 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
+    margin-bottom: 2rem;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+.card-body {
+    padding: 2.5rem;
+}
+
+/* ============================================
+   Typography
+   ============================================ */
+.page-title {
+    text-align: center;
+    margin-bottom: 3rem;
+    color: var(--primary-color);
+    font-weight: 700;
+    font-size: 2.5rem;
+    letter-spacing: -0.5px;
+    transition: color 0.3s ease;
+}
+
+/* ============================================
+   Button Styles
+   ============================================ */
+.btn-primary {
+    background-color: var(--primary-color);
+    border: none;
+    padding: 0.75rem 2rem;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px var(--shadow-medium);
+    color: white;
+}
+
+.btn-primary:disabled {
+    background-color: var(--text-muted);
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-primary i {
+    margin-right: 0.5rem;
+}
+
+.btn-outline-primary {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.btn-outline-primary:hover {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+.btn-outline-danger {
+    color: var(--danger-color);
+    border-color: var(--danger-color);
+}
+
+.btn-outline-danger:hover {
+    background-color: var(--danger-color);
+    color: white;
+}
+
+/* ============================================
+   Alert Styles
+   ============================================ */
+.alert {
+    border-radius: 10px;
+    border: none;
+    box-shadow: 0 2px 4px var(--shadow-dark);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.alert-success {
+    background-color: rgba(40, 167, 69, 0.1);
+    color: var(--success-color);
+}
+
+[data-theme="dark"] .alert-success {
+    background-color: rgba(74, 222, 128, 0.15);
+    color: var(--success-color);
+}
+
+.alert-danger {
+    background-color: rgba(220, 53, 69, 0.1);
+    color: var(--danger-color);
+}
+
+[data-theme="dark"] .alert-danger {
+    background-color: rgba(248, 113, 113, 0.15);
+    color: var(--danger-color);
+}
+
+.alert-info {
+    background-color: rgba(13, 202, 240, 0.1);
+    color: #0dcaf0;
+    border-left: 3px solid #0dcaf0;
+}
+
+[data-theme="dark"] .alert-info {
+    background-color: rgba(13, 202, 240, 0.15);
+}
+
+.alert-warning {
+    background-color: rgba(255, 193, 7, 0.1);
+    color: #856404;
+    border-left: 3px solid #ffc107;
+}
+
+[data-theme="dark"] .alert-warning {
+    background-color: rgba(255, 193, 7, 0.15);
+    color: #ffc107;
+}
+
+#alert {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+#alert .btn-close {
+    margin-left: auto;
+}
+
+/* ============================================
+   Form Styles
+   ============================================ */
+.form-control {
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    padding: 0.75rem 1rem;
+    background-color: var(--card-bg);
+    color: var(--text-dark);
+    transition: border-color 0.3s ease, background-color 0.3s ease, color 0.3s ease;
+}
+
+.form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem rgba(74, 107, 255, 0.25);
+    background-color: var(--card-bg);
+    color: var(--text-dark);
+}
+
+.form-control:read-only {
+    background-color: var(--secondary-color);
+}
+
+.form-label {
+    font-weight: 500;
+    color: var(--text-dark);
+    transition: color 0.3s ease;
+}
+
+.text-muted {
+    color: var(--text-muted) !important;
+}
+
+/* ============================================
+   Upload Section
+   ============================================ */
+.upload-section {
+    padding: 2rem;
+    border: 2px dashed var(--border-color);
+    border-radius: 10px;
+    text-align: center;
+    margin-bottom: 2rem;
+    transition: all 0.3s ease;
+    background-color: var(--card-bg);
+}
+
+.upload-section:hover {
+    border-color: var(--primary-color);
+    background-color: rgba(74, 107, 255, 0.05);
+}
+
+[data-theme="dark"] .upload-section:hover {
+    background-color: rgba(107, 140, 255, 0.1);
+}
+
+.upload-section.highlight {
+    border-color: var(--primary-color);
+    background-color: rgba(74, 107, 255, 0.05);
+}
+
+[data-theme="dark"] .upload-section.highlight {
+    background-color: rgba(107, 140, 255, 0.1);
+}
+
+/* ============================================
+   Progress Bar
+   ============================================ */
+.progress {
+    height: 4px;
+    background-color: var(--border-color);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 1rem;
+}
+
+.progress-bar {
+    height: 4px;
+    background: var(--primary-color);
+    width: 0;
+    transition: width 0.3s ease;
+    position: relative;
+}
+
+.progress-bar.success {
+    background-color: var(--success-color) !important;
+}
+
+.progress-bar.error {
+    background-color: var(--danger-color) !important;
+}
+
+/* ============================================
+   File List
+   ============================================ */
+.file-list {
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 1rem;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+    gap: 0.5rem;
+    transition: border-color 0.3s ease;
+}
+
+.file-item:last-child {
+    border-bottom: none;
+}
+
+.file-item i {
+    margin-right: 0.5rem;
+    color: var(--primary-color);
+    flex-shrink: 0;
+}
+
+.file-item span {
+    flex: 1;
+    word-break: break-word;
+}
+
+#fileList {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* ============================================
+   Config Section (config.html specific)
+   ============================================ */
+.config-section {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--card-bg);
+    transition: all 0.3s ease;
+}
+
+.config-section:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 4px var(--shadow-light);
+}
+
+.feature-section {
+    background-color: var(--secondary-color);
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.feature-section:hover {
+    background-color: var(--border-color);
+}
+
+.parameter-section {
+    margin-left: 2rem;
+    padding: 1.5rem;
+    background-color: var(--card-bg);
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+}
+
+.section-title {
+    color: var(--primary-color);
+    font-weight: 600;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.section-title i {
+    font-size: 1.2em;
+}
+
+.feature-title {
+    font-weight: 600;
+    color: var(--text-dark);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* ============================================
+   Workflow Step Card (workflow.html specific)
+   ============================================ */
+.workflow-step-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1.5rem;
+    background: var(--card-bg);
+    border-radius: 15px;
+    box-shadow: 0 4px 6px var(--shadow-dark);
+    padding: 2.5rem;
+    margin-bottom: 2rem;
+    transition: all 0.3s ease;
+    border: 1px solid var(--border-color);
+    position: relative;
+}
+
+.workflow-step-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 32px var(--shadow-medium);
+    border-color: var(--primary-color);
+}
+
+.step-header {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    width: 100%;
+}
+
+.step-icon {
+    flex-shrink: 0;
+    width: 80px;
+    height: 80px;
+    background: var(--primary-color);
+    border-radius: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px var(--shadow-medium);
+    position: relative;
+}
+
+.step-icon i {
+    font-size: 2.2rem;
+    color: white;
+    z-index: 1;
+    position: relative;
+}
+
+.step-header h4 {
+    margin: 0;
+    color: var(--primary-color);
+    font-weight: 700;
+    font-size: 1.5rem;
+    letter-spacing: -0.5px;
+}
+
+.step-content {
+    width: 100%;
+}
+
+.step-content p {
+    margin-bottom: 1.5rem;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    line-height: 1.6;
+}
+
+.step-number {
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    width: 40px;
+    height: 40px;
+    background: var(--accent-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 700;
+    font-size: 1.1rem;
+    box-shadow: 0 2px 8px rgba(255, 107, 107, 0.3);
+    z-index: 2;
+}
+
+.download-section {
+    background-color: var(--secondary-color);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-top: 1.5rem;
+    border: 1.5px dashed var(--border-color);
+    text-align: center;
+}
+
+.download-section span {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.download-links {
+    margin-top: 1rem;
+}
+
+.download-link {
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* ============================================
+   Footer (workflow.html specific)
+   ============================================ */
+.footer {
+    background-color: var(--navbar-bg);
+    border-top: 1px solid var(--border-color);
+    padding: 1rem 2rem;
+    box-shadow: 0 -2px 4px var(--shadow-dark);
+    margin-top: auto;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.footer-content {
+    max-width: 1000px;
+    margin: 0 auto;
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.footer-content a {
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.footer-content a:hover {
+    text-decoration: underline;
+}
+
+/* ============================================
+   Login Page Specific (login.html)
+   ============================================ */
+body.login-page {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+[data-theme="dark"] body.login-page {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+}
+
+.login-container {
+    background: var(--card-bg);
+    border-radius: 15px;
+    box-shadow: 0 10px 40px var(--shadow-dark);
+    padding: 3rem;
+    max-width: 400px;
+    width: 100%;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.login-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.login-header h1 {
+    color: #667eea;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+[data-theme="dark"] .login-header h1 {
+    color: var(--primary-color);
+}
+
+.login-page .form-control:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+
+[data-theme="dark"] .login-page .form-control:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 0.2rem var(--shadow-light);
+}
+
+.login-page .btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    padding: 0.75rem;
+    font-weight: 600;
+}
+
+[data-theme="dark"] .login-page .btn-primary {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+}
+
+.login-page .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+[data-theme="dark"] .login-page .btn-primary:hover {
+    box-shadow: 0 5px 15px var(--shadow-medium);
+}
+
+/* ============================================
+   Animations
+   ============================================ */
+.workflow-step-card {
+    animation: fadeInUp 0.6s ease forwards;
+    opacity: 0;
+    transform: translateY(30px);
+}
+
+.workflow-step-card:nth-child(1) { animation-delay: 0.1s; }
+.workflow-step-card:nth-child(2) { animation-delay: 0.2s; }
+.workflow-step-card:nth-child(3) { animation-delay: 0.3s; }
+.workflow-step-card:nth-child(4) { animation-delay: 0.4s; }
+.workflow-step-card:nth-child(5) { animation-delay: 0.5s; }
+
+@keyframes fadeInUp {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ============================================
+   Collapse Toggle
+   ============================================ */
+[data-bs-toggle="collapse"] {
+    transition: all 0.3s ease;
+}
+
+[data-bs-toggle="collapse"]:not(.collapsed) .fa-chevron-down {
+    transform: rotate(180deg);
+    transition: transform 0.3s ease;
+}
+
+.fa-chevron-down {
+    transition: transform 0.3s ease;
+}
+
+/* ============================================
+   Table Styles (admin.html)
+   ============================================ */
+.table {
+    color: var(--text-dark);
+}
+
+.table thead th {
+    border-bottom: 2px solid var(--border-color);
+    color: var(--text-dark);
+}
+
+.table tbody td {
+    border-bottom: 1px solid var(--border-color);
+}
+
+/* ============================================
+   Object List (config.html)
+   ============================================ */
+.object-list {
+    margin-left: 2rem;
+}
+
+.object-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    padding: 0.75rem;
+    background: var(--card-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.object-item input {
+    flex: 1;
+}
+
+/* ============================================
+   Settings Card (config.html)
+   ============================================ */
+.settings-card {
+    background: var(--secondary-color);
+    border-radius: 10px;
+    padding: 1.5rem;
+    border: 1px solid var(--border-color);
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+.settings-card:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 8px var(--shadow-light);
+}
+
+/* ============================================
+   Remove Button (workflow.html)
+   ============================================ */
+.file-item .remove-btn {
+    background: none;
+    border: none;
+    color: var(--danger-color);
+    font-size: 1.1rem;
+    padding: 0.25rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.file-item .remove-btn:hover {
+    background-color: var(--danger-color);
+    color: white;
+    transform: scale(1.1);
+}
+
+.file-item .remove-btn i {
+    color: var(--danger-color);
+}
+
+.file-item .remove-btn:hover i {
+    color: white;
+}
+
