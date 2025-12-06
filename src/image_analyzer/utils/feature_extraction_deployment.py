@@ -1685,6 +1685,11 @@ def predict_coco_labels_yolo11(self, df_images):
                     else:
                         result = output
                     
+                    # Check for errors in Replicate response
+                    if "error" in result:
+                        error_msg = result.get("error", "Unknown error from Replicate")
+                        raise Exception(f"Replicate model error: {error_msg}")
+                    
                     # Use class_probabilities dict which already has coco_* keys
                     class_probabilities = result.get('class_probabilities', {})
                     

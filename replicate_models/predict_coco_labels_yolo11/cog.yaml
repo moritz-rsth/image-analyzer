@@ -1,0 +1,12 @@
+build:
+  gpu: true
+  cog_runtime: true
+  python_version: "3.10"
+  python_requirements: "requirements.txt"
+  system_packages:
+    - "libgl1-mesa-glx"
+    - "libglib2.0-0"
+
+image: "r8.im/dm_tum/ia_predict_coco_labels_yolo11"
+predict: "predict.py:Predictor"
+

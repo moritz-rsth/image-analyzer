@@ -74,12 +74,15 @@ features:
     active: false
     parameters:
       # Replicate model ID für YOLO11 COCO Detection
-      replicate_model_id: dm_tum/ia_predict_coco_labels_yolo11
+      replicate_model_id: dm_tum/ia_predict_coco_labels_yolo11:58cfd7848220e549296d9ab83ba7ed8fb095c534969655442a9cc15dc1ede739
+      confidence_threshold: 0.25
+      iou_threshold: 0.45
   predict_imagenet_classes_yolo11:
     active: false
     parameters:
       # Replicate model ID für YOLO11 ImageNet Classification
-      replicate_model_id: dm_tum/ia_predict_imagenet_classes_yolo11
+      replicate_model_id: dm_tum/ia_predict_imagenet_classes_yolo11:3da19cca9c8f4cc3eb622d45075fe33b3efc0b8957c842e9ff48af40b8faa784
+      top_k: 10
   self_similarity:
     active: false
   visual_complexity:

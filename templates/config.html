@@ -357,10 +357,14 @@
                         <!-- COCO Labels -->
                         <div class="feature-section">
                             <div class="form-check">
-                                <input type="checkbox" name="features.predict_coco_labels_yolo11.active" class="form-check-input" checked>
+                                <input type="checkbox" name="features.predict_coco_labels_yolo11.active" class="form-check-input gpu-feature-checkbox" checked>
                                 <label class="form-check-label feature-title">
                                     <i class="fas fa-tags"></i>COCO Labels
                                 </label>
+                            </div>
+                            <div class="alert alert-warning mt-2 gpu-warning" style="display: none;">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>Note:</strong> This feature uses GPU hardware via Replicate API. Processing times may be longer due to cold start initialization of GPU resources.
                             </div>
                             <p class="text-muted mt-2">This function returns confidence scores for each detected COCO class detected.<br><br><strong>Calculation:</strong><br>The function uses the YOLO model to detect COCO classes. Per image, the following metrics are calculated:<br>• <i>coco_[class_name]</i> as the prediction probability for each detected COCO class. For example, if a person is detected, there will be a 'person' column with the detection confidence<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Redmon, J., Divvala, S. K., Girshick, R. B., & Farhadi, A. (2015). You only look once: Unified, real-time object detection. <span class="cursive-text">arXiv preprint arXiv:1506.02640</span>. <a href="https://arxiv.org/abs/1506.02640" target="_blank">https://arxiv.org/abs/1506.02640</a></p>
                         </div>
@@ -368,10 +372,14 @@
                         <!-- ImageNet Classes -->
                         <div class="feature-section">
                             <div class="form-check">
-                                <input type="checkbox" name="features.predict_imagenet_classes_yolo11.active" class="form-check-input" checked>
+                                <input type="checkbox" name="features.predict_imagenet_classes_yolo11.active" class="form-check-input gpu-feature-checkbox" checked>
                                 <label class="form-check-label feature-title">
                                     <i class="fas fa-layer-group"></i>Image Classification
                                 </label>
+                            </div>
+                            <div class="alert alert-warning mt-2 gpu-warning" style="display: none;">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>Note:</strong> This feature uses GPU hardware via Replicate API. Processing times may be longer due to cold start initialization of GPU resources.
                             </div>
                             <p class="text-muted mt-2">This function returns probability scores for each ImageNet class detected.<br><br><strong>Calculation:</strong><br>The function uses the YOLO model to classify ImageNet classes. Per image, the following metrics are calculated:<br>• <i>imagenet_[class_name]</i> as the prediction probability for each ImageNet class. For example, if a dog is detected, there will be an 'imagenet_dog' column with the classification probability<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Redmon, J., Divvala, S. K., Girshick, R. B., & Farhadi, A. (2015). You only look once: Unified, real-time object detection. <span class="cursive-text">arXiv preprint arXiv:1506.02640</span>. <a href="https://arxiv.org/abs/1506.02640" target="_blank">https://arxiv.org/abs/1506.02640</a></p>
                         </div>
@@ -471,10 +479,14 @@
                         <!-- Detect Faces -->
                         <div class="feature-section">
                             <div class="form-check">
-                                <input type="checkbox" name="features.detect_faces.active" class="form-check-input">
+                                <input type="checkbox" name="features.detect_faces.active" class="form-check-input gpu-feature-checkbox">
                                 <label class="form-check-label feature-title">
                                     <i class="fas fa-user"></i>Face Detection
                                 </label>
+                            </div>
+                            <div class="alert alert-warning mt-2 gpu-warning" style="display: none;">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>Note:</strong> This feature uses GPU hardware via Replicate API. Processing times may be longer due to cold start initialization of GPU resources.
                             </div>
                             <p class="text-muted mt-2">This function returns four values: Count of faces (<i>face_count</i>), mean confidence of face detection (<i>face_scores</i>), absolute pixel area covered with faces (<i>face_areas_abs</i>), and relative picture area covered with faces (<i>face_areas_rel</i>).<br><br><strong>Calculation:</strong><br>The function uses MTCNN() to identify faces' bounding boxes and their corresponding detection confidence. Per image, the following metrics are calculated:<br>• <i>face_count</i> as Integer value representing the number of faces detected above confidence threshold<br>• <i>face_scores</i> as Float value representing the average confidence score of detected faces<br>• <i>face_areas_abs</i> as Float value representing the total pixel area covered by detected faces<br>• <i>face_areas_rel</i> as Float value in range [0,1] representing the proportion of image area covered by faces<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Zhang, K., Zhang, Z., Li, Z., & Qiao, Y. (2016). Joint face detection and alignment using multitask cascaded convolutional networks. <span class="cursive-text">IEEE Signal Processing Letters</span>, 23(10), 1499–1503. <a href="https://doi.org/10.1109/LSP.2016.2603342" target="_blank">https://doi.org/10.1109/LSP.2016.2603342</a></p>
                         </div>
@@ -581,16 +593,29 @@
             }
         }
 
+        // Function to toggle GPU warning visibility
+        function toggleGpuWarning(checkbox) {
+            const featureSection = checkbox.closest('.feature-section');
+            if (featureSection) {
+                const warning = featureSection.querySelector('.gpu-warning');
+                if (warning) {
+                    warning.style.display = checkbox.checked ? 'block' : 'none';
+                }
+            }
+        }
+
         // Add event listeners to all feature checkboxes
         function setupCheckboxListeners() {
             // Handle feature section checkboxes
             document.querySelectorAll('.feature-section input[type="checkbox"]').forEach(checkbox => {
                 // Set initial state
                 toggleParameterSection(checkbox);
+                toggleGpuWarning(checkbox);
                 
                 // Add change event listener
                 checkbox.addEventListener('change', function() {
                     toggleParameterSection(this);
+                    toggleGpuWarning(this);
                 });
             });
         }
@@ -705,6 +730,8 @@
                                         input.checked = subValue;
                                         // Toggle parameter section based on checkbox state
                                         toggleParameterSection(input);
+                                        // Toggle GPU warning if it's a GPU feature
+                                        toggleGpuWarning(input);
                                     } else {
                                         input.value = subValue;
                                     }
@@ -718,6 +745,8 @@
                                 input.checked = value;
                                 // Toggle parameter section based on checkbox state
                                 toggleParameterSection(input);
+                                // Toggle GPU warning if it's a GPU feature
+                                toggleGpuWarning(input);
                             } else {
                                 input.value = value;
                             }

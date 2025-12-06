@@ -1028,8 +1028,8 @@ def serve_upload(filename):
 
 @app.route('/config-page')
 @login_required
-def config_new_page():
-    return render_template('config_new.html')
+def config_page():
+    return render_template('config.html')
 
 @socketio.on('connect')
 def handle_connect():

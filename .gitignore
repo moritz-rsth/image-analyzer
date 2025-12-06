@@ -12,7 +12,6 @@ build/
 develop-eggs/
 dist/
 database/
-replicate_models/
 data/
 downloads/
 eggs/
@@ -166,7 +165,7 @@ cython_debug/
 
 
 Thumbs.db
-DS_Store
+.DS_Store
 uploads/*
 outputs/*
 ..\\..\\outputs\\*/
@@ -174,3 +173,21 @@ src/image_analyzer/weights/*
 impl.py
 src/image_analyzer/train/*
 docs/
+
+# Model weights (automatically downloaded, should not be committed)
+*.pt
+*.pth
+*.weights
+*.h5
+*.ckpt
+*.pkl
+*.cog
+
+# COCO labels (automatically downloaded)
+*.names
+
+# IDE specific files
+.vscode/
+.idea/
+*.swp
+*.swo
