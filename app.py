@@ -6,6 +6,7 @@ import sqlite3
 import pandas as pd
 from datetime import datetime
 from src.image_analyzer.pipeline.ia_pipeline_deployment import IA
+from src.image_analyzer.utils import user_management
 import yaml
 import shutil
 import threading
@@ -45,6 +46,10 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading', logge
 
 UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'outputs'
+# New config structure
+DEPLOYMENT_CONFIG_FILE = os.path.join('config', 'deploymentConfig.yaml')
+DEFAULT_USER_CONFIG_FILE = os.path.join('config', 'userConfig.yaml')
+# Legacy config files (kept for backward compatibility)
 DEFAULT_CONFIG_FILE = os.path.join('config', 'configuration_deployment.yaml')
 CURR_CONFIG_FILE = os.path.join('config', 'configuration.yaml')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -171,12 +176,31 @@ def list_users():
 
 
 def delete_user(username: str):
-    """Delete user by username."""
+    """
+    Delete user by username.
+    Deletes user from database and removes all associated folders.
+    """
+    # Delete user folders first (before database deletion)
+    try:
+        delete_results = user_management.delete_user_folders(
+            username, 
+            DATABASE_BASE_PATH, 
+            UPLOAD_FOLDER, 
+            OUTPUT_FOLDER
+        )
+        if delete_results['errors']:
+            logging.warning(f"Some errors occurred while deleting folders for user {username}: {delete_results['errors']}")
+    except Exception as e:
+        logging.error(f"Error deleting folders for user {username}: {str(e)}")
+        # Continue with database deletion even if folder deletion fails
+    
+    # Delete user from database
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("DELETE FROM users WHERE username = ?", (username,))
     conn.commit()
     conn.close()
+    logging.info(f"Deleted user {username} from database")
 
 
 # Initialize database on startup
@@ -365,65 +389,173 @@ def progress_callback(progress_data, user_session_id):
             # Session disconnected - silently ignore but keep progress state
             print(f"Could not send progress update (session disconnected): {e}")
 
+def deep_merge_dict(base_dict, override_dict):
+    """
+    Deep merge two dictionaries. Values from override_dict take precedence.
+    
+    :param base_dict: Base dictionary (deployment config)
+    :param override_dict: Override dictionary (user config)
+    :return: Merged dictionary
+    """
+    result = base_dict.copy()
+    
+    for key, value in override_dict.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            # Recursively merge nested dictionaries
+            result[key] = deep_merge_dict(result[key], value)
+        else:
+            # Override with user value
+            result[key] = value
+    
+    return result
+
+
+def filter_deployment_fields(config_dict):
+    """
+    Filter out deployment-only fields from config, keeping only user-modifiable fields.
+    
+    :param config_dict: Full configuration dictionary
+    :return: Filtered dictionary with only user-modifiable fields
+    """
+    filtered = {}
+    
+    if 'features' in config_dict:
+        filtered['features'] = {}
+        for feature_name, feature_config in config_dict['features'].items():
+            filtered_feature = {}
+            
+            # Keep active flag
+            if 'active' in feature_config:
+                filtered_feature['active'] = feature_config['active']
+            
+            # Keep parameters, but exclude replicate_model_id
+            if 'parameters' in feature_config:
+                filtered_params = {}
+                for param_key, param_value in feature_config['parameters'].items():
+                    if param_key != 'replicate_model_id':
+                        filtered_params[param_key] = param_value
+                if filtered_params:
+                    filtered_feature['parameters'] = filtered_params
+            
+            if filtered_feature:
+                filtered['features'][feature_name] = filtered_feature
+    
+    if 'general' in config_dict:
+        filtered['general'] = {}
+        general = config_dict['general']
+        # Keep user-modifiable general settings, exclude system paths
+        for key in ['debug_image_count', 'debug_mode', 'logs', 'output_formats', 'summary_stats', 'verbose']:
+            if key in general:
+                filtered['general'][key] = general[key]
+    
+    return filtered
+
+
+def get_deployment_config_path():
+    """
+    Get the path to the deployment configuration file.
+    
+    :return: Path to deploymentConfig.yaml
+    """
+    return DEPLOYMENT_CONFIG_FILE
+
+
 def get_user_config_path(user_id=None):
     """
     Get the path to the user-specific config file.
-    User-specific configs are stored in database/user_id/config.yaml.
+    User-specific configs are stored in database/user_id/userConfig.yaml.
     If user_id is None, tries to get it from session.
-    Returns the user-specific path if user exists, otherwise returns default.
+    Returns the user-specific path if user exists, otherwise returns default user config.
     """
     if user_id is None:
         user_id = session.get('user_id')
     
     if user_id:
-        # Store user-specific configs in database/user_id/config.yaml
-        user_dir = os.path.join(DATABASE_BASE_PATH, user_id)
-        user_config_file = os.path.join(user_dir, 'config.yaml')
-        return user_config_file
-    return DEFAULT_CONFIG_FILE
+        # Store user-specific configs in database/user_id/userConfig.yaml
+        return user_management.get_user_config_path(user_id, DATABASE_BASE_PATH)
+    return DEFAULT_USER_CONFIG_FILE
+
 
 def load_config(user_id=None):
     """
-    Load configuration for a user.
-    If user-specific config exists, load it. Otherwise, load default deployment config.
+    Load and merge configuration for a user.
+    Merges deploymentConfig.yaml (base) with userConfig.yaml (overrides).
     
     :param user_id: Optional user ID. If None, tries to get from session.
-    :return: Configuration dictionary
+    :return: Merged configuration dictionary
     """
+    # Load deployment config (base)
+    deployment_config_path = get_deployment_config_path()
+    if not os.path.exists(deployment_config_path):
+        # Fallback to legacy config if new structure doesn't exist
+        deployment_config_path = DEFAULT_CONFIG_FILE
+    
+    try:
+        with open(deployment_config_path, 'r') as file:
+            deployment_config = yaml.safe_load(file) or {}
+    except Exception as e:
+        logging.error(f"Error loading deployment config: {str(e)}")
+        deployment_config = {}
+    
+    # Load user config (overrides)
     user_config_path = get_user_config_path(user_id)
-    
-    # Check if user-specific config exists, otherwise use default
     if user_id and os.path.exists(user_config_path):
-        config_file = user_config_path
+        try:
+            with open(user_config_path, 'r') as file:
+                user_config = yaml.safe_load(file) or {}
+        except Exception as e:
+            logging.error(f"Error loading user config for {user_id}: {str(e)}")
+            user_config = {}
+    elif os.path.exists(DEFAULT_USER_CONFIG_FILE):
+        # Use default user config template
+        try:
+            with open(DEFAULT_USER_CONFIG_FILE, 'r') as file:
+                user_config = yaml.safe_load(file) or {}
+        except Exception as e:
+            logging.error(f"Error loading default user config: {str(e)}")
+            user_config = {}
     else:
-        config_file = DEFAULT_CONFIG_FILE
+        user_config = {}
     
-    with open(config_file, 'r') as file:
-        return yaml.safe_load(file)
+    # Merge: deployment config (base) + user config (overrides)
+    merged_config = deep_merge_dict(deployment_config, user_config)
+    return merged_config
+
 
 def save_config(config_data, user_id=None):
     """
-    Save configuration for a user.
-    Saves to user-specific config file in database/user_id/config.yaml if user_id is provided.
+    Save user-modifiable configuration for a user.
+    Only saves user-modifiable fields to database/user_id/userConfig.yaml.
+    Deployment-only fields are filtered out.
     
-    :param config_data: Configuration dictionary to save
+    :param config_data: Configuration dictionary to save (may contain deployment fields)
     :param user_id: Optional user ID. If None, tries to get from session.
     """
     if user_id is None:
         user_id = session.get('user_id')
     
-    if user_id:
-        # Save to user-specific config file in database/user_id/config.yaml
-        user_config_file = get_user_config_path(user_id)
-        # Ensure user directory exists
-        user_dir = os.path.dirname(user_config_file)
-        os.makedirs(user_dir, exist_ok=True)
+    if not user_id:
+        logging.warning("Cannot save config: no user_id provided")
+        return
+    
+    # Filter out deployment-only fields
+    user_config_data = filter_deployment_fields(config_data)
+    
+    # Get user config path
+    user_config_file = get_user_config_path(user_id)
+    
+    # Ensure user directory exists
+    user_dir = os.path.dirname(user_config_file)
+    os.makedirs(user_dir, exist_ok=True)
+    
+    # Save only user-modifiable fields
+    try:
         with open(user_config_file, 'w') as file:
-            yaml.dump(config_data, file, default_flow_style=False, sort_keys=False)
-    else:
-        # Fallback to current config file if no user_id (shouldn't happen in normal flow)
-        with open(CURR_CONFIG_FILE, 'w') as file:
-            yaml.dump(config_data, file, default_flow_style=False, sort_keys=False)
+            yaml.dump(user_config_data, file, default_flow_style=False, sort_keys=False)
+        logging.info(f"Saved user config for {user_id}")
+    except Exception as e:
+        logging.error(f"Error saving user config for {user_id}: {str(e)}")
+        raise
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -502,7 +634,39 @@ def admin_create_token():
         if username.lower() == admin_user.lower():
             return jsonify({'status': 'error', 'message': f'Cannot create user with admin username "{admin_user}"'}), 400
 
+        # Check if user already exists in database
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT username FROM users WHERE username = ?", (username,))
+        user_exists = cur.fetchone() is not None
+        conn.close()
+
+        # Create or update user in database
         saved_token = upsert_user_token(username, token, image_limit)
+        
+        # If this is a new user, create folders and initialize config
+        if not user_exists:
+            try:
+                # Create user folders
+                user_management.create_user_folders(
+                    username,
+                    DATABASE_BASE_PATH,
+                    UPLOAD_FOLDER,
+                    OUTPUT_FOLDER
+                )
+                
+                # Initialize user config from template
+                user_management.initialize_user_config(
+                    username,
+                    DATABASE_BASE_PATH,
+                    DEFAULT_USER_CONFIG_FILE
+                )
+                
+                logging.info(f"Created folders and initialized config for new user {username}")
+            except Exception as e:
+                logging.error(f"Error creating folders/config for user {username}: {str(e)}")
+                # Continue even if folder creation fails (user is already in DB)
+        
         return jsonify({
             'status': 'success',
             'message': f'Token set for user {username}',
@@ -587,20 +751,46 @@ def manage_config():
             if not config_data:
                 return jsonify({'status': 'error', 'message': 'No configuration data received'}), 400
             
-            # Save the configuration to user-specific file
+            # Validate: Check if user is trying to save deployment-only fields
+            # Filter them out and log a warning if found
+            deployment_fields_found = []
+            if 'features' in config_data:
+                for feature_name, feature_config in config_data.get('features', {}).items():
+                    if 'parameters' in feature_config:
+                        if 'replicate_model_id' in feature_config['parameters']:
+                            deployment_fields_found.append(f"features.{feature_name}.parameters.replicate_model_id")
+                            # Remove it
+                            del feature_config['parameters']['replicate_model_id']
+            
+            if 'general' in config_data:
+                if 'input_dir' in config_data['general']:
+                    deployment_fields_found.append("general.input_dir")
+                    del config_data['general']['input_dir']
+                if 'output_dir' in config_data['general']:
+                    deployment_fields_found.append("general.output_dir")
+                    del config_data['general']['output_dir']
+            
+            if deployment_fields_found:
+                logging.warning(f"User {user_id} attempted to save deployment-only fields (ignored): {deployment_fields_found}")
+            
+            # Save only user-modifiable configuration
             save_config(config_data, user_id)
             
             return jsonify({'status': 'success', 'message': 'Configuration updated successfully'})
         except Exception as e:
-            print("Error saving config:", str(e))
+            logging.error(f"Error saving config for user {user_id}: {str(e)}")
             return jsonify({'status': 'error', 'message': str(e)}), 400
     
-    # GET request - return current configuration (user-specific or default)
+    # GET request - return merged configuration, but mark which fields are user-modifiable
     try:
-        config_data = load_config(user_id)
-        return jsonify(config_data)
+        # Load merged config (deployment + user)
+        merged_config = load_config(user_id)
+        
+        # For GET, we return the full merged config so the UI can display it
+        # The UI will hide/disable deployment-only fields
+        return jsonify(merged_config)
     except Exception as e:
-        print("Error loading config:", str(e))
+        logging.error(f"Error loading config for user {user_id}: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)}), 400
 
 @app.route('/', methods=['GET', 'POST'])
@@ -738,13 +928,20 @@ def process_images():
         # Process images in a background thread to allow Socket.IO events to be sent immediately
         def process_images_background():
             try:
-                # Get user-specific config path (falls back to default if not exists)
-                user_config_path = get_user_config_path(user_id)
-                if not os.path.exists(user_config_path):
-                    user_config_path = DEFAULT_CONFIG_FILE
+                # Load merged config (deployment + user)
+                merged_config = load_config(user_id)
+                
+                # Create a temporary merged config file for IA (IA expects a file path)
+                # Store it in the user's output folder so it's included in the run
+                user_output_folder = get_user_folder(user_id, OUTPUT_FOLDER)
+                temp_config_path = os.path.join(user_output_folder, f'merged_config_{int(time.time())}.yaml')
+                
+                # Write merged config to temporary file
+                with open(temp_config_path, 'w') as f:
+                    yaml.dump(merged_config, f, default_flow_style=False, sort_keys=False)
                 
                 # Create a fresh Image Analyzer instance for this batch
-                ia = IA(config_path=user_config_path)
+                ia = IA(config_path=temp_config_path)
                 ia.input_dir = batch_folder
                 # Set output directory to user's output folder
                 user_output_folder = get_user_folder(user_id, OUTPUT_FOLDER)

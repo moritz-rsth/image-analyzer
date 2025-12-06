@@ -805,16 +805,15 @@
                 const currentConfig = await response.json();
                 config = currentConfig; // Use current config as base
                 
-                // Preserve the general settings
+                // Preserve only user-modifiable general settings
+                // Note: input_dir and output_dir are deployment-only and should not be preserved
                 const generalSettings = {
-                    input_dir: currentConfig.general?.input_dir || "..\\..\\data\\test_human_20\\",
-                    output_dir: currentConfig.general?.output_dir || "..\\..\\outputs\\",
                     verbose: currentConfig.general?.verbose || false,
                     debug_mode: currentConfig.general?.debug_mode || false,
                     debug_image_count: currentConfig.general?.debug_image_count || 2
                 };
                 
-                // Ensure general settings are preserved
+                // Ensure general settings are preserved (excluding deployment-only fields)
                 if (!config.general) {
                     config.general = {};
                 }
@@ -868,8 +867,18 @@
             });
             
             // Then process other form data
+            // Filter out deployment-only fields (replicate_model_id, input_dir, output_dir)
+            const deploymentOnlyFields = ['replicate_model_id', 'input_dir', 'output_dir'];
+            
             for (const [key, value] of formData.entries()) {
                 const keys = key.split('.');
+                
+                // Skip if this is a deployment-only field
+                if (keys.includes('replicate_model_id') || 
+                    (keys[0] === 'general' && (keys.includes('input_dir') || keys.includes('output_dir')))) {
+                    continue;
+                }
+                
                 let current = config;
                 
                 for (let i = 0; i < keys.length - 1; i++) {
@@ -902,6 +911,11 @@
                         }
                     });
                 } else {
+                    // Skip deployment-only parameter fields
+                    if (keys[keys.length - 1] === 'replicate_model_id') {
+                        continue;
+                    }
+                    
                     // Convert string values to appropriate types
                     if (value === 'true') {
                         current[keys[keys.length - 1]] = true;
@@ -913,6 +927,23 @@
                         current[keys[keys.length - 1]] = value;
                     }
                 }
+            }
+            
+            // Clean up any deployment-only fields that might have been included
+            if (config.features) {
+                for (const featureName in config.features) {
+                    if (config.features[featureName].parameters) {
+                        // Remove replicate_model_id if present
+                        if (config.features[featureName].parameters.replicate_model_id) {
+                            delete config.features[featureName].parameters.replicate_model_id;
+                        }
+                    }
+                }
+            }
+            if (config.general) {
+                // Remove deployment-only general fields
+                delete config.general.input_dir;
+                delete config.general.output_dir;
             }
             
             try {

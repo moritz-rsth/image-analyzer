@@ -1,0 +1,35 @@
+# Deployment Configuration
+# This file contains deployment-specific settings that are NOT user-modifiable.
+# These settings are managed centrally and include API endpoints, model IDs, and system paths.
+
+features:
+  describe_blip:
+    parameters:
+      # Replicate model ID für die Deployment-Variante (wird in feature_extraction_deployment.py verwendet)
+      replicate_model_id: salesforce/blip:2e1dddc8621f72155f24cf2e0adbde548458d3cab9f00c0139eea840d0ac4746
+  describe_llm:
+    parameters:
+      # Replicate model ID für multimodales LLM (wird in feature_extraction_deployment.py verwendet)
+      replicate_model_id: microsoft/phi-4-multimodal-instruct:40c8f5c03ce250441855e776528bafd11cdb302c6677613acc0942c58dbd0afa
+  detect_faces:
+    parameters:
+      # Replicate model ID für Face Detection (MTCNN oder ähnliches)
+      replicate_model_id: dm_tum/ia_detect_faces:649d6577f3209145eece54b5eaa16d06a9ea1f47206fa5ea720a4bb4d5167c1a
+  detect_objects:
+    parameters:
+      # Replicate model ID für Object Detection (z.B. Florence-2)
+      replicate_model_id: lucataco/florence-2-base:c81609117f666d3a86b262447f80d41ac5158a76adb56893301843a23165eaf8
+  predict_coco_labels_yolo11:
+    parameters:
+      # Replicate model ID für YOLO11 COCO Detection
+      replicate_model_id: dm_tum/ia_predict_coco_labels_yolo11:58cfd7848220e549296d9ab83ba7ed8fb095c534969655442a9cc15dc1ede739
+  predict_imagenet_classes_yolo11:
+    parameters:
+      # Replicate model ID für YOLO11 ImageNet Classification
+      replicate_model_id: dm_tum/ia_predict_imagenet_classes_yolo11:3da19cca9c8f4cc3eb622d45075fe33b3efc0b8957c842e9ff48af40b8faa784
+
+general:
+  # System paths (base paths, not user-modifiable)
+  input_dir: ../../data/test_human_20/
+  output_dir: ../../outputs/
+

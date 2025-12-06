@@ -69,6 +69,16 @@
         .card-body {
             padding: 2.5rem;
         }
+
+        #alert {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        #alert .btn-close {
+            margin-left: auto;
+        }
     </style>
 </head>
 <body>
@@ -179,11 +189,64 @@
     const btnCopyNew = document.getElementById('btn-copy-new');
     const btnSaveNew = document.getElementById('btn-save-new');
 
-    function showAlert(type, msg) {
-      alertBox.className = 'alert alert-' + type;
-      alertBox.textContent = msg;
+    function showAlert(type, msg, options = {}) {
+      alertBox.className = 'alert alert-' + type + ' alert-dismissible';
+      alertBox.innerHTML = ''; // Clear previous content
+      
+      // Create message container with flex layout
+      const msgContainer = document.createElement('div');
+      msgContainer.style.display = 'flex';
+      msgContainer.style.alignItems = 'center';
+      msgContainer.style.flexWrap = 'wrap';
+      msgContainer.style.gap = '0.5rem';
+      
+      // Add message text
+      const msgText = document.createElement('span');
+      msgText.textContent = msg;
+      msgContainer.appendChild(msgText);
+      
+      // Add copy button if token is provided
+      if (options.token) {
+        const copyBtn = document.createElement('button');
+        // Use white button for better visibility on colored backgrounds
+        copyBtn.className = 'btn btn-sm btn-light';
+        copyBtn.type = 'button';
+        copyBtn.style.marginLeft = '0.5rem';
+        copyBtn.innerHTML = '<i class="fas fa-copy me-1"></i>Copy Token';
+        copyBtn.onclick = () => {
+          copyToClipboard(options.token);
+          const originalHTML = copyBtn.innerHTML;
+          const originalClass = copyBtn.className;
+          copyBtn.innerHTML = '<i class="fas fa-check me-1"></i>Copied!';
+          copyBtn.className = 'btn btn-sm btn-success';
+          setTimeout(() => {
+            copyBtn.innerHTML = originalHTML;
+            copyBtn.className = originalClass;
+          }, 2000);
+        };
+        msgContainer.appendChild(copyBtn);
+      }
+      
+      alertBox.appendChild(msgContainer);
+      
+      // Add close button
+      const closeBtn = document.createElement('button');
+      closeBtn.type = 'button';
+      closeBtn.className = 'btn-close';
+      closeBtn.setAttribute('aria-label', 'Close');
+      closeBtn.onclick = () => {
+        alertBox.classList.add('d-none');
+        if (options.timeoutId) clearTimeout(options.timeoutId);
+      };
+      alertBox.appendChild(closeBtn);
+      
       alertBox.classList.remove('d-none');
-      setTimeout(() => alertBox.classList.add('d-none'), 4000);
+      
+      // Auto-hide after 10 seconds
+      const timeout = setTimeout(() => {
+        alertBox.classList.add('d-none');
+      }, 10000);
+      options.timeoutId = timeout;
     }
 
     function randomToken32() {
@@ -276,7 +339,9 @@
         const token = randomToken32();
         try {
           const data = await saveUser(username, token, limit);
-          showAlert('success', `Updated ${username}. New token: ${data.token}`);
+          showAlert('success', `Token renewed for ${username}. New token: ${data.token}`, { 
+            token: data.token
+          });
         } catch (err) {
           showAlert('danger', err.message);
         }

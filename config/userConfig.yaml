@@ -1,3 +1,7 @@
+# User Configuration Template
+# This file contains user-modifiable settings.
+# Users can override these settings, which will be merged with deploymentConfig.yaml
+
 features:
   calculate_aesthetic_scores:
     active: true
@@ -14,16 +18,12 @@ features:
       # Local model/processor names (für die lokale Variante, falls genutzt)
       model: Salesforce/blip-image-captioning-base
       processor: Salesforce/blip-image-captioning-base
-      # Replicate model ID für die Deployment-Variante (wird in feature_extraction_deployment.py verwendet)
-      replicate_model_id: salesforce/blip:2e1dddc8621f72155f24cf2e0adbde548458d3cab9f00c0139eea840d0ac4746
   describe_llm:
     active: false
     parameters:
       max_new_tokens: 1000
       # Lokaler Modellname (für die lokale Variante, falls genutzt)
       model: microsoft/Phi-4-multimodal-instruct
-      # Replicate model ID für multimodales LLM (wird in feature_extraction_deployment.py verwendet)
-      replicate_model_id: microsoft/phi-4-multimodal-instruct:40c8f5c03ce250441855e776528bafd11cdb302c6677613acc0942c58dbd0afa
   describe_llm_openai_api:
     active: false
     parameters:
@@ -35,8 +35,6 @@ features:
     active: false
     parameters:
       confidence_threshold: 0.9
-      # Replicate model ID für Face Detection (MTCNN oder ähnliches)
-      replicate_model_id: dm_tum/ia_detect_faces
   detect_objects:
     active: false
     parameters:
@@ -47,8 +45,6 @@ features:
       - building
       - window
       - glasses
-      # Replicate model ID für Object Detection (z.B. Florence-2)
-      replicate_model_id: lucataco/florence-2-base:c81609117f666d3a86b262447f80d41ac5158a76adb56893301843a23165eaf8
   estimate_noise:
     active: true
   extract_basic_image_features:
@@ -73,15 +69,11 @@ features:
   predict_coco_labels_yolo11:
     active: false
     parameters:
-      # Replicate model ID für YOLO11 COCO Detection
-      replicate_model_id: dm_tum/ia_predict_coco_labels_yolo11:58cfd7848220e549296d9ab83ba7ed8fb095c534969655442a9cc15dc1ede739
       confidence_threshold: 0.25
       iou_threshold: 0.45
   predict_imagenet_classes_yolo11:
     active: false
     parameters:
-      # Replicate model ID für YOLO11 ImageNet Classification
-      replicate_model_id: dm_tum/ia_predict_imagenet_classes_yolo11:3da19cca9c8f4cc3eb622d45075fe33b3efc0b8957c842e9ff48af40b8faa784
       top_k: 10
   self_similarity:
     active: false
@@ -92,13 +84,12 @@ features:
 general:
   debug_image_count: 5
   debug_mode: false
-  input_dir: ../../data/test_human_20/
   logs:
     active: true
-  output_dir: ../../outputs/
   output_formats:
     csv: true
     excel: true
   summary_stats:
     active: true
   verbose: false
+
