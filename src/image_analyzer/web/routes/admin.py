@@ -13,6 +13,7 @@ from src.image_analyzer.web.database import (
     get_db_connection,
     upsert_user_token,
     update_user_limit,
+    update_user_pro_features,
     list_users,
     delete_user
 )
@@ -49,6 +50,7 @@ def admin_create_token():
         username = (data or {}).get('username')
         token = (data or {}).get('token')
         image_limit = int((data or {}).get('image_limit', 0))
+        pro_features = bool((data or {}).get('pro_features', False))
 
         if not username or not token:
             return jsonify({'status': 'error', 'message': 'Username and token are required'}), 400
@@ -68,7 +70,7 @@ def admin_create_token():
         conn.close()
 
         # Create or update user in database
-        saved_token = upsert_user_token(username, token, image_limit)
+        saved_token = upsert_user_token(username, token, image_limit, pro_features)
         
         # If this is a new user, create folders and initialize config
         if not user_exists:
@@ -97,6 +99,7 @@ def admin_create_token():
             'status': 'success',
             'message': f'Token set for user {username}',
             'image_limit': image_limit,
+            'pro_features': pro_features,
             'token': saved_token  # only returned on creation/update
         })
     except Exception as e:
@@ -123,6 +126,10 @@ def admin_update_limit():
         data = request.get_json() or {}
         username = data.get('username')
         image_limit = int(data.get('image_limit', 0))
+        pro_features = data.get('pro_features')
+        
+        # pro_features is optional - only update if provided
+        update_pro_features = 'pro_features' in data
 
         if not username:
             return jsonify({'status': 'error', 'message': 'Username is required'}), 400
@@ -139,10 +146,16 @@ def admin_update_limit():
         conn.close()
 
         update_user_limit(username, image_limit)
+        
+        # Update pro_features if provided
+        if update_pro_features:
+            update_user_pro_features(username, bool(pro_features))
+        
         return jsonify({
             'status': 'success',
-            'message': f'Image limit updated for user {username}',
-            'image_limit': image_limit
+            'message': f'User settings updated for {username}',
+            'image_limit': image_limit,
+            'pro_features': bool(pro_features) if update_pro_features else None
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500

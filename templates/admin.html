@@ -36,7 +36,7 @@
     <div class="card">
       <div class="card-body">
         <h2 class="h5 mb-3">Add or update user</h2>
-        <div class="row g-3 align-items-end">
+        <div class="row g-3">
           <div class="col-md-3">
             <label class="form-label">Username</label>
             <input type="text" class="form-control" id="new-username" placeholder="username">
@@ -45,16 +45,31 @@
             <label class="form-label">Image limit</label>
             <input type="number" min="0" class="form-control" id="new-limit" value="0">
           </div>
-          <div class="col-md-7">
+          <div class="col-md-2">
+            <label class="form-label">Pro User</label>
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" id="new-pro-features">
+              <label class="form-check-label" for="new-pro-features">
+                Enable Pro Features
+              </label>
+            </div>
+          </div>
+          <div class="col-md-5">
             <label class="form-label d-flex justify-content-between align-items-center">
-              <span>Token (auto-generated, read-only)</span>
+              <span>Token (auto-generated)</span>
               <span class="small text-muted">32 chars</span>
             </label>
             <div class="input-group">
               <input type="text" class="form-control" id="new-token" readonly>
-              <button class="btn btn-outline-secondary btn-sm" type="button" id="btn-generate-new"><i class="fas fa-sync-alt me-2"></i>Generate</button>
-              <button class="btn btn-outline-secondary btn-sm" type="button" id="btn-copy-new"><i class="fas fa-copy me-2"></i>Copy</button>
-              <button class="btn btn-outline-primary btn-sm" type="button" id="btn-save-new"><i class="fas fa-save me-2"></i>Save</button>
+              <button class="btn btn-outline-secondary btn-sm" type="button" id="btn-generate-new" title="Generate new token">
+                <i class="fas fa-sync-alt"></i>
+              </button>
+              <button class="btn btn-outline-secondary btn-sm" type="button" id="btn-copy-new" title="Copy token">
+                <i class="fas fa-copy"></i>
+              </button>
+              <button class="btn btn-primary btn-sm" type="button" id="btn-save-new" title="Save user">
+                <i class="fas fa-save"></i> Save
+              </button>
             </div>
           </div>
         </div>
@@ -72,6 +87,7 @@
               <tr>
                 <th>Username</th>
                 <th style="width: 140px;">Image limit</th>
+                <th style="width: 120px;">Pro User</th>
                 <th>Created</th>
                 <th class="text-end" style="width: 220px;">Actions</th>
               </tr>
@@ -82,6 +98,11 @@
                 <td class="fw-semibold">{{ u.username }}</td>
                 <td>
                   <input type="number" min="0" class="form-control form-control-sm user-limit" value="{{ u.image_limit }}">
+                </td>
+                <td>
+                  <div class="form-check">
+                    <input class="form-check-input user-pro-features" type="checkbox" data-username="{{ u.username }}" {% if u.pro_features %}checked{% endif %}>
+                  </div>
                 </td>
                 <td class="text-muted small">{{ u.created_at }}</td>
                 <td class="text-end">
@@ -99,7 +120,7 @@
                 </td>
               </tr>
             {% else %}
-              <tr><td colspan="4" class="text-center text-muted">No users yet</td></tr>
+              <tr><td colspan="5" class="text-center text-muted">No users yet</td></tr>
             {% endfor %}
             </tbody>
           </table>
@@ -112,6 +133,7 @@
     const alertBox = document.getElementById('alert');
     const newUser = document.getElementById('new-username');
     const newLimit = document.getElementById('new-limit');
+    const newProFeatures = document.getElementById('new-pro-features');
     const newToken = document.getElementById('new-token');
     const btnGenNew = document.getElementById('btn-generate-new');
     const btnCopyNew = document.getElementById('btn-copy-new');
@@ -199,8 +221,8 @@
     // initialize token field
     newToken.value = randomToken32();
 
-    async function saveUser(username, token, limit) {
-      const payload = { username, token, image_limit: limit };
+    async function saveUser(username, token, limit, proFeatures) {
+      const payload = { username, token, image_limit: limit, pro_features: proFeatures };
       const res = await fetch('/admin/create-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -217,6 +239,7 @@
       const username = newUser.value.trim();
       const limit = parseInt(newLimit.value || '0', 10);
       const token = newToken.value.trim();
+      const proFeatures = newProFeatures.checked;
       if (!username || !token) {
         showAlert('warning', 'Username and token are required.');
         return;
@@ -227,7 +250,7 @@
         return;
       }
       try {
-        const data = await saveUser(username, token, limit);
+        const data = await saveUser(username, token, limit, proFeatures);
         showAlert('success', `Saved ${username}. Token: ${data.token}`);
         window.location.reload();
       } catch (err) {
@@ -240,18 +263,20 @@
         const row = btn.closest('tr');
         const username = btn.dataset.username;
         const limitInput = row.querySelector('.user-limit');
+        const proFeaturesInput = row.querySelector('.user-pro-features');
         const limit = parseInt(limitInput.value || '0', 10);
+        const proFeatures = proFeaturesInput.checked;
         try {
           const res = await fetch('/admin/update-limit', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, image_limit: limit })
+            body: JSON.stringify({ username, image_limit: limit, pro_features: proFeatures })
           });
           const data = await res.json();
           if (!res.ok || data.status !== 'success') {
-            throw new Error(data.message || 'Failed to update limit');
+            throw new Error(data.message || 'Failed to update user settings');
           }
-          showAlert('success', `Image limit updated for ${username}`);
+          showAlert('success', `User settings updated for ${username}`);
         } catch (err) {
           showAlert('danger', err.message);
         }
@@ -263,10 +288,12 @@
         const row = btn.closest('tr');
         const username = btn.dataset.username;
         const limitInput = row.querySelector('.user-limit');
+        const proFeaturesInput = row.querySelector('.user-pro-features');
         const limit = parseInt(limitInput.value || '0', 10);
+        const proFeatures = proFeaturesInput.checked;
         const token = randomToken32();
         try {
-          const data = await saveUser(username, token, limit);
+          const data = await saveUser(username, token, limit, proFeatures);
           showAlert('success', `Token renewed for ${username}. New token: ${data.token}`, { 
             token: data.token
           });

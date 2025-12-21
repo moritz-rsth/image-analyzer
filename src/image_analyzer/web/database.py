@@ -42,24 +42,40 @@ def init_db():
         )
         """
     )
+    
+    # ============================================================================
+    # MIGRATION: Add pro_features column (remove this block after migration)
+    # ============================================================================
+    try:
+        # Check if column exists by trying to select it
+        cur.execute("SELECT pro_features FROM users LIMIT 1")
+    except sqlite3.OperationalError:
+        # Column doesn't exist, add it
+        cur.execute("ALTER TABLE users ADD COLUMN pro_features INTEGER DEFAULT 0")
+        logger.info("Added pro_features column to users table")
+    # ============================================================================
+    # END MIGRATION BLOCK - Remove after running migration once
+    # ============================================================================
+    
     conn.commit()
     conn.close()
 
 
-def upsert_user_token(username: str, raw_token: str, image_limit: int):
-    """Create or replace a user's token hash and image limit."""
+def upsert_user_token(username: str, raw_token: str, image_limit: int, pro_features: bool = False):
+    """Create or replace a user's token hash, image limit, and pro_features status."""
     token_hash = generate_password_hash(raw_token)
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
         """
-        INSERT INTO users (username, token_hash, image_limit)
-        VALUES (?, ?, ?)
+        INSERT INTO users (username, token_hash, image_limit, pro_features)
+        VALUES (?, ?, ?, ?)
         ON CONFLICT(username) DO UPDATE SET
             token_hash=excluded.token_hash,
-            image_limit=excluded.image_limit
+            image_limit=excluded.image_limit,
+            pro_features=excluded.pro_features
         """,
-        (username, token_hash, image_limit),
+        (username, token_hash, image_limit, 1 if pro_features else 0),
     )
     conn.commit()
     conn.close()
@@ -83,6 +99,18 @@ def update_user_limit(username: str, image_limit: int):
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("UPDATE users SET image_limit = ? WHERE username = ?", (image_limit, username))
+    conn.commit()
+    conn.close()
+
+
+def update_user_pro_features(username: str, pro_features: bool):
+    """Update only the pro_features status for an existing user."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE users SET pro_features = ? WHERE username = ?", 
+        (1 if pro_features else 0, username)
+    )
     conn.commit()
     conn.close()
 
@@ -123,8 +151,11 @@ def list_users():
     """Return list of users with basic info."""
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT username, image_limit, created_at FROM users ORDER BY username")
+    cur.execute("SELECT username, image_limit, pro_features, created_at FROM users ORDER BY username")
     rows = [dict(r) for r in cur.fetchall()]
+    # Convert pro_features from INTEGER (0/1) to boolean
+    for row in rows:
+        row['pro_features'] = bool(row.get('pro_features', 0))
     conn.close()
     return rows
 
