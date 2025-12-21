@@ -38,25 +38,11 @@ def init_db():
             username TEXT UNIQUE NOT NULL,
             token_hash TEXT NOT NULL,
             image_limit INTEGER DEFAULT 0,
+            pro_features INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
     )
-    
-    # ============================================================================
-    # MIGRATION: Add pro_features column (remove this block after migration)
-    # ============================================================================
-    try:
-        # Check if column exists by trying to select it
-        cur.execute("SELECT pro_features FROM users LIMIT 1")
-    except sqlite3.OperationalError:
-        # Column doesn't exist, add it
-        cur.execute("ALTER TABLE users ADD COLUMN pro_features INTEGER DEFAULT 0")
-        logger.info("Added pro_features column to users table")
-    # ============================================================================
-    # END MIGRATION BLOCK - Remove after running migration once
-    # ============================================================================
-    
     conn.commit()
     conn.close()
 
