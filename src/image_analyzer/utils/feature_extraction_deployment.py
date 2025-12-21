@@ -33,6 +33,7 @@ import platform
 import pytesseract
 import pywt
 import tensorflow as tf
+import time
 import traceback
 import base64
 import ast
@@ -53,6 +54,23 @@ from tqdm import tqdm
 
 import replicate
 from openai import OpenAI
+
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+def _yield_cpu_time(idx, interval=10, sleep_time=0.1):
+    """
+    Yield CPU time to keep the web server responsive.
+    Called every N images to give the event loop time to process other requests.
+    
+    :param idx: Current index in the loop
+    :param interval: Pause every N images (default: 10)
+    :param sleep_time: Pause duration in seconds (default: 0.1 = 100ms)
+    """
+    if idx > 0 and idx % interval == 0:
+        time.sleep(sleep_time)
 
 
 # ============================================================================
@@ -179,6 +197,9 @@ def calculate_aesthetic_scores(self, df_images):
                 aesthetic_score = sum((i + 1) * p[i] for i in range(len(p)))
                 df.loc[idx, 'nima_score'] = aesthetic_score
 
+                # Yield CPU time to keep web server responsive
+                _yield_cpu_time(idx, interval=10, sleep_time=0.1)
+
             except Exception as e:
                 error = f"Error processing {image_path}: {str(e)}"
                 print(error)
@@ -253,6 +274,9 @@ def calculate_hue_proportions(self, df_images):
             df.loc[idx, 'hues_warm'] = warm_proportion
             df.loc[idx, 'hues_cold'] = cold_proportion
 
+            # Yield CPU time to keep web server responsive
+            _yield_cpu_time(idx, interval=10, sleep_time=0.1)
+
         except Exception as e:
             error = f"Error processing {image_path}: {str(e)}"
             print(error)
@@ -304,6 +328,9 @@ def calculate_image_clarity(self, df_images):
             clarity_score = np.sum(clarity_mask) / v_channel.size  # Proportion of high-brightness pixels
             
             df.loc[idx, 'clarity'] = clarity_score
+
+            # Yield CPU time to keep web server responsive
+            _yield_cpu_time(idx, interval=10, sleep_time=0.1)
 
         except Exception as e:
             error = f"Error processing {image_path}: {str(e)}"
@@ -876,6 +903,9 @@ def estimate_noise(self, df_images):
             # Value more than 10 indicates a noisy image
             df.loc[idx, 'noise'] = sigma
 
+            # Yield CPU time to keep web server responsive
+            _yield_cpu_time(idx, interval=10, sleep_time=0.1)
+
         except Exception as e:
             error = f"Error processing {image_path}: {str(e)}"
             print(error)
@@ -955,6 +985,9 @@ def extract_basic_image_features(self, df_images):
             # Shannon entropy
             df.loc[idx, 'shannonEntropy'] = measure.shannon_entropy(image_gray)
 
+            # Yield CPU time to keep web server responsive
+            _yield_cpu_time(idx, interval=10, sleep_time=0.1)
+
         except Exception as e:
             error = f"Error processing {image_path}: {str(e)}"
             print(error)
@@ -994,6 +1027,9 @@ def extract_blur_value(self, df_images):
 
             # Set threshold at 100. Value below 100 indicates a blurry image
             df.loc[idx, 'blur'] = cv2.Laplacian(gray, cv2.CV_64F).var()
+
+            # Yield CPU time to keep web server responsive
+            _yield_cpu_time(idx, interval=10, sleep_time=0.1)
 
         except Exception as e:
             error = f"Error processing {image_path}: {str(e)}"
@@ -1052,6 +1088,9 @@ def felzenszwalb_segmentation(self, df_images):
                     )
                     segmented_image = label2rgb(segments, image, kind='avg')
                     df.loc[idx, 'felzenszwalbSegmentationRGB'] = segmented_image
+
+                    # Yield CPU time to keep web server responsive
+                    _yield_cpu_time(idx, interval=10, sleep_time=0.1)
 
                 except Exception as e:
                     error = f"Segmentation error: {str(e)}"
@@ -1142,6 +1181,9 @@ def get_color_features(self, df_images):
             df.loc[idx, 'saturationMean'] = saturation_val
             df.loc[idx, 'contrast'] = contrast_val
             df.loc[idx, 'colorfulness'] = colorfulness
+
+            # Yield CPU time to keep web server responsive
+            _yield_cpu_time(idx, interval=10, sleep_time=0.1)
 
         except Exception as e:
             error = f"Error processing {image_path}: {str(e)}"
@@ -1320,6 +1362,9 @@ def get_composition_features(self, df_images):
                 df.loc[idx, 'colorVisualBalanceVertical'] = vertical_color_balance
                 df.loc[idx, 'colorVisualBalanceHorizontal'] = horizontal_color_balance
 
+                # Yield CPU time to keep web server responsive
+                _yield_cpu_time(idx, interval=10, sleep_time=0.1)
+
             except Exception as e:
                 error = f"Error processing {image_path}: {str(e)}"
                 print(error)
@@ -1497,6 +1542,9 @@ def get_figure_ground_relationship_features(self, df_images):
             df.loc[idx, 'depthOfFieldHue'] = np.clip(dof_hue, 0, 1)
             df.loc[idx, 'depthOfFieldSaturation'] = np.clip(dof_sat, 0, 1)
             df.loc[idx, 'depthOfFieldValue'] = np.clip(dof_val, 0, 1)
+
+            # Yield CPU time to keep web server responsive
+            _yield_cpu_time(idx, interval=10, sleep_time=0.1)
             
         except Exception as e:
             error = f"Error processing {image_path}: {str(e)}"
@@ -1570,6 +1618,10 @@ def get_ocr_text(self, df_images):
                             df.loc[idx, 'ocrLanguage'] = language
                         except LangDetectException:
                             df.loc[idx, 'ocrLanguage'] = "unknown"
+                
+                    # Yield CPU time to keep web server responsive
+                    _yield_cpu_time(idx, interval=10, sleep_time=0.1)
+
                 except Exception as e:
                     error = f"OCR error: {str(e)}"
                     print(f"Error performing OCR for {image_path}: {error}")
@@ -1905,6 +1957,9 @@ def self_similarity(self, df_images):
 
                     df.loc[idx, 'selfSimilarity'] = similarity_score
 
+                    # Yield CPU time to keep web server responsive
+                    _yield_cpu_time(idx, interval=10, sleep_time=0.1)
+
                 except Exception as e:
                     error = f"Similarity calculation error: {str(e)}"
                     print(f"Error calculating similarity for {image_path}: {error}")
@@ -1974,6 +2029,9 @@ def visual_complexity(self, df_images):
                     r_spt = sum(1 for region in regions if region.area > threshold_val)
 
                     df.loc[idx, 'visualComplexity'] = r_spt
+
+                    # Yield CPU time to keep web server responsive
+                    _yield_cpu_time(idx, interval=10, sleep_time=0.1)
 
                 except Exception as e:
                     error = f"Complexity calculation error: {str(e)}"
