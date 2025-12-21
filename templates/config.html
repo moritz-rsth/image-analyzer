@@ -143,10 +143,14 @@
                         <!-- COCO Labels -->
                         <div class="feature-section">
                             <div class="form-check">
-                                <input type="checkbox" name="features.predict_coco_labels_yolo11.active" class="form-check-input gpu-feature-checkbox" checked>
+                                <input type="checkbox" name="features.predict_coco_labels_yolo11.active" class="form-check-input gpu-feature-checkbox replicate-feature" data-feature="predict_coco_labels_yolo11" checked>
                                 <label class="form-check-label feature-title">
                                     <i class="fas fa-tags"></i>COCO Labels
                                 </label>
+                            </div>
+                            <div class="alert alert-info mt-2 pro-feature-message" style="display: none;">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Feature only available for pro-accounts. If needed, run Image Analyzer via Colab or locally or ask admin for pro usage. For instructions, refer to the GitHub page.
                             </div>
                             <div class="alert alert-warning mt-2 gpu-warning" style="display: none;">
                                 <i class="fas fa-exclamation-triangle me-2"></i>
@@ -158,10 +162,14 @@
                         <!-- ImageNet Classes -->
                         <div class="feature-section">
                             <div class="form-check">
-                                <input type="checkbox" name="features.predict_imagenet_classes_yolo11.active" class="form-check-input gpu-feature-checkbox" checked>
+                                <input type="checkbox" name="features.predict_imagenet_classes_yolo11.active" class="form-check-input gpu-feature-checkbox replicate-feature" data-feature="predict_imagenet_classes_yolo11" checked>
                                 <label class="form-check-label feature-title">
                                     <i class="fas fa-layer-group"></i>Image Classification
                                 </label>
+                            </div>
+                            <div class="alert alert-info mt-2 pro-feature-message" style="display: none;">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Feature only available for pro-accounts. If needed, run Image Analyzer via Colab or locally or ask admin for pro usage. For instructions, refer to the GitHub page.
                             </div>
                             <div class="alert alert-warning mt-2 gpu-warning" style="display: none;">
                                 <i class="fas fa-exclamation-triangle me-2"></i>
@@ -244,10 +252,14 @@
                         <!-- Detect Objects -->
                         <div class="feature-section">
                             <div class="form-check">
-                                <input type="checkbox" name="features.detect_objects.active" class="form-check-input">
+                                <input type="checkbox" name="features.detect_objects.active" class="form-check-input replicate-feature" data-feature="detect_objects">
                                 <label class="form-check-label feature-title">
                                     <i class="fas fa-search"></i>Object Detection
                                 </label>
+                            </div>
+                            <div class="alert alert-info mt-2 pro-feature-message" style="display: none;">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Feature only available for pro-accounts. If needed, run Image Analyzer via Colab or locally or ask admin for pro usage. For instructions, refer to the GitHub page.
                             </div>
                             <p class="text-muted mt-2">This function returns boolean values for each specified object below, indicating whether it is present in the image.<br><br><strong>Calculation:</strong><br>The function uses the Florence-2 model to detect objects. Per image, the following metrics are calculated:<br>• <i>contains_[object_name]</i> as a boolean value indicating whether the specified object is detected in the image<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Xiao, B., et al. (2023). Florence-2: Advancing a unified representation for a variety of vision tasks. <span class="cursive-text">arXiv preprint arXiv:2311.06242</span>. <a href="https://arxiv.org/abs/2311.06242" target="_blank">https://arxiv.org/abs/2311.06242</a></p>
                             <div class="parameter-section" style="display: none;">
@@ -265,10 +277,14 @@
                         <!-- Detect Faces -->
                         <div class="feature-section">
                             <div class="form-check">
-                                <input type="checkbox" name="features.detect_faces.active" class="form-check-input gpu-feature-checkbox">
+                                <input type="checkbox" name="features.detect_faces.active" class="form-check-input gpu-feature-checkbox replicate-feature" data-feature="detect_faces">
                                 <label class="form-check-label feature-title">
                                     <i class="fas fa-user"></i>Face Detection
                                 </label>
+                            </div>
+                            <div class="alert alert-info mt-2 pro-feature-message" style="display: none;">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Feature only available for pro-accounts. If needed, run Image Analyzer via Colab or locally or ask admin for pro usage. For instructions, refer to the GitHub page.
                             </div>
                             <div class="alert alert-warning mt-2 gpu-warning" style="display: none;">
                                 <i class="fas fa-exclamation-triangle me-2"></i>
@@ -313,10 +329,14 @@
                         <!-- BLIP Description -->
                         <div class="feature-section">
                             <div class="form-check">
-                                <input type="checkbox" name="features.describe_blip.active" class="form-check-input">
+                                <input type="checkbox" name="features.describe_blip.active" class="form-check-input replicate-feature" data-feature="describe_blip">
                                 <label class="form-check-label feature-title">
                                     <i class="fas fa-comment-alt"></i>Description
                                 </label>
+                            </div>
+                            <div class="alert alert-info mt-2 pro-feature-message" style="display: none;">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Feature only available for pro-accounts. If needed, run Image Analyzer via Colab or locally or ask admin for pro usage. For instructions, refer to the GitHub page.
                             </div>
                             <p class="text-muted mt-2">This feature returns a generated image description (<i>descrBlip</i>).<br><br><strong>Implementation:</strong><br>The feature uses the BLIP model to generate an image description. Per image, the following is generated:<br>• <i>descrBlip</i> as a generated image description<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Li, J., Li, D., Xiong, C., & Hoi, S. (2022). BLIP: Bootstrapping language-image pre-training for unified vision-language understanding and generation. <span class="cursive-text">arXiv preprint arXiv:2201.12086</span>. <a href="https://arxiv.org/abs/2201.12086" target="_blank">https://arxiv.org/abs/2201.12086</a></p>
                         </div>
@@ -324,10 +344,14 @@
                         <!-- LLM Description -->
                         <div class="feature-section">
                             <div class="form-check">
-                                <input type="checkbox" name="features.describe_llm.active" class="form-check-input">
+                                <input type="checkbox" name="features.describe_llm.active" class="form-check-input replicate-feature" data-feature="describe_llm">
                                 <label class="form-check-label feature-title">
                                     <i class="fas fa-robot"></i>Advanced Description
                                 </label>
+                            </div>
+                            <div class="alert alert-info mt-2 pro-feature-message" style="display: none;">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Feature only available for pro-accounts. If needed, run Image Analyzer via Colab or locally or ask admin for pro usage. For instructions, refer to the GitHub page.
                             </div>
                             <p class="text-muted mt-2">This feature returns a detailed image description (<i>descrLLM</i>).<br><br><strong>Implementation:</strong><br>The feature uses the Phi-4-Mini model to generate a detailed image description. Per image, the following is generated:<br>• <i>descrLLM</i> as a detailed image description generated by the model<br><br>For details, please check the actual implementation.<br><br><strong>Source:</strong><br>Microsoft et al. (2025). Phi-4-Mini technical report: Compact yet powerful multimodal language models via mixture-of-LoRAs. <span class="cursive-text">arXiv preprint arXiv:2503.01743</span>. <a href="https://arxiv.org/abs/2503.01743" target="_blank">https://arxiv.org/abs/2503.01743</a></p>
                         </div>
@@ -344,6 +368,29 @@
     </div>
 
     <script>
+        // Check if user is pro (passed from backend)
+        const isProUser = {{ 'true' if is_pro_user else 'false' }};
+        const replicateFeatures = {{ replicate_features|tojson }};
+        
+        // Disable Replicate features for non-pro users
+        function setupProFeatureRestrictions() {
+            if (!isProUser) {
+                document.querySelectorAll('.replicate-feature').forEach(checkbox => {
+                    checkbox.disabled = true;
+                    checkbox.checked = false;
+                    
+                    // Show pro feature message
+                    const featureSection = checkbox.closest('.feature-section');
+                    if (featureSection) {
+                        const message = featureSection.querySelector('.pro-feature-message');
+                        if (message) {
+                            message.style.display = 'block';
+                        }
+                    }
+                });
+            }
+        }
+        
         function addObject() {
             const container = document.getElementById('objects-to-detect');
             const newItem = document.createElement('div');
@@ -503,7 +550,12 @@
                                     const input = document.querySelector(`[name="${key}.${subKey}.${paramKey}"]`);
                                     if (input) {
                                         if (input.type === 'checkbox') {
-                                            input.checked = paramValue;
+                                            // Don't enable Replicate features for non-pro users
+                                            if (!isProUser && input.classList.contains('replicate-feature')) {
+                                                input.checked = false;
+                                            } else {
+                                                input.checked = paramValue;
+                                            }
                                         } else {
                                             input.value = paramValue;
                                         }
@@ -513,7 +565,12 @@
                                 const input = document.querySelector(`[name="${key}.${subKey}"]`);
                                 if (input) {
                                     if (input.type === 'checkbox') {
-                                        input.checked = subValue;
+                                        // Don't enable Replicate features for non-pro users
+                                        if (!isProUser && input.classList.contains('replicate-feature')) {
+                                            input.checked = false;
+                                        } else {
+                                            input.checked = subValue;
+                                        }
                                         // Toggle parameter section based on checkbox state
                                         toggleParameterSection(input);
                                         // Toggle GPU warning if it's a GPU feature
@@ -528,7 +585,12 @@
                         const input = document.querySelector(`[name="${key}"]`);
                         if (input) {
                             if (input.type === 'checkbox') {
-                                input.checked = value;
+                                // Don't enable Replicate features for non-pro users
+                                if (!isProUser && input.classList.contains('replicate-feature')) {
+                                    input.checked = false;
+                                } else {
+                                    input.checked = value;
+                                }
                                 // Toggle parameter section based on checkbox state
                                 toggleParameterSection(input);
                                 // Toggle GPU warning if it's a GPU feature
@@ -760,6 +822,18 @@
 
         // Load configuration when page loads
         loadConfig();
+        
+        // Setup pro feature restrictions after page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            setupProFeatureRestrictions();
+        });
+        
+        // Also setup after config is loaded (in case DOMContentLoaded already fired)
+        const originalLoadConfig = loadConfig;
+        loadConfig = async function() {
+            await originalLoadConfig();
+            setupProFeatureRestrictions();
+        };
     </script>
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
 </body>

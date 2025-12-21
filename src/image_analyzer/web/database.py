@@ -146,6 +146,19 @@ def list_users():
     return rows
 
 
+def is_pro_user(username: str) -> bool:
+    """Check if a user has pro features enabled."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT pro_features FROM users WHERE username = ?", (username,))
+    row = cur.fetchone()
+    conn.close()
+    if not row:
+        return False
+    # sqlite3.Row supports dictionary-like access but not .get()
+    return bool(row['pro_features'] or 0)
+
+
 def delete_user(username: str):
     """
     Delete user by username.
