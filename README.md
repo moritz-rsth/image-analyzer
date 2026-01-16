@@ -130,11 +130,3 @@ docker run -p 5000:5000 \
 - **Metrics:** Railway dashboard → Metrics tab
 - **Deployments:** Railway dashboard → Deployments tab
 
-## Cost
-
-Railway offers:
-- Free tier: $5 credit/month
-- Hobby plan: $20/month (includes more resources)
-- Pay-as-you-go for additional usage
-
-Check Railway pricing for current rates.
